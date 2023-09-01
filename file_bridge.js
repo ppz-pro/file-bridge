@@ -26,7 +26,15 @@ createServer(
 
       const handler = router.find(h => h.path == path)
       if(handler)
-        handler.handle(response, lang, query)
+        handler.handle(response, lang, query, {
+          read: () => new Promise((resolve, reject) => {
+            const result = []
+            request.on('data', chunk => result.push(chunk))
+            request.on('end', () => resolve(JSON.parse(result.join(''))))
+            request.on('error', reject)
+          }),
+          write: data => response.end(JSON.stringify(data))
+      })
       else {
         response.writeHead(404)
         response.end('404')
@@ -61,6 +69,16 @@ function make_router() {
         <body>
           <h1>${title}</h1>
           ${body}
+          <script>
+            window.http = new Proxy({}, {
+              get(_, method) {
+                return (path, data) => fetch(path, {
+                  method,
+                  body: data && JSON.stringify(data)
+                }).then(res => res.json())
+              }
+            })
+          </script>
         </body>
       </html>
     `)
@@ -122,15 +140,24 @@ function make_router() {
             </style>
             <script>
               let root = null
-
+              let provider_id = ${++server_id}
               async function serve() {
-                const Dir = (handle, name) => ({
+                const Proto = self => Object.assign(Object.create({
+                  toJSON() {
+                    return {
+                      name: this.name,
+                      children: this.children,
+                    }
+                  }
+                }), self)
+                const Dir = (handle, name) => Proto({
                   handle,
                   name,
                   children: []
                 })
-                const File = (handle, name) => ({ handle, name })
+                const File = (handle, name) => Proto({ handle, name })
 
+                // 1. 构建文件目录树
                 root = await async function build_tree(dir) {
                   for await (const [name, handle] of dir.handle.entries())
                     dir.children.push(
@@ -143,15 +170,19 @@ function make_router() {
                 }(
                   Dir(await window.showDirectoryPicker())
                 )
-                
+
+                // 2. 填充提示信息
                 document.getElementById('serve_tip').innerHTML = \`
                   ${lang('已开启，客户端访问', 'serving on')[lang_key]}
-                  <a href="../as_client?id=${++server_id}" target="_blank">
+                  <a href="../as_client?id=\${provider_id}" target="_blank">
                     ${lang('这个链接', 'this link')[lang_key]}
                   </a>
                 \`
-                
+
+                // 3. 展示文件目录树
                 const main = document.querySelector('main')
+                const build_details = (header, body) =>
+                  '<details><summary>' + header + '</summary><div class="details_body">' + body + '</div></details>'
                 main.innerHTML = function build_html(dir) {
                   return build_details(
                     '/' + dir.name,
@@ -164,14 +195,22 @@ function make_router() {
                   name: '',
                   children: root.children
                 })
-                function build_details(header, body) {
-                  return '<details><summary>' + header + '</summary><div class="details_body">' + body + '</div></details>'
-                }
+                
+                // 4. 上报服务器
+                http.POST('/set_provider', {
+                  provider_id,
+                  tree: root.children,
+                })
               }
-              
             </script>
           `
         )
+      }
+    },
+    {
+      path: '/set_provider',
+      async handle(res, lang_key, query, json) {
+        json.write('success')
       }
     }
   ]
