@@ -26,15 +26,20 @@ createServer(
 
       const handler = router.find(({ path, method = 'GET' }) => path == path_target && method == request.method)
       if(handler)
-        handler.handle(response, lang, query, {
-          read: () => new Promise((resolve, reject) => {
-            const result = []
-            request.on('data', chunk => result.push(chunk))
-            request.on('end', () => resolve(JSON.parse(result.join(''))))
-            request.on('error', reject)
-          }),
-          write: data => response.end(JSON.stringify(data))
-      })
+        handler.handle({
+          res: response,
+          lang_key: lang,
+          query,
+          json: {
+            read: () => new Promise((resolve, reject) => {
+              const result = []
+              request.on('data', chunk => result.push(chunk))
+              request.on('end', () => resolve(JSON.parse(result.join(''))))
+              request.on('error', reject)
+            }),
+            write: data => response.end(JSON.stringify(data))
+          }
+        })
       else {
         response.writeHead(404)
         response.end('404')
@@ -87,7 +92,7 @@ function make_router() {
   return [
     {
       path: '/',
-      handle(res, lang_key) {
+      handle({ res, lang_key }) {
         respond_html(
           res,
           lang_key,
@@ -105,7 +110,7 @@ function make_router() {
     },
     {
       path: '/as_server',
-      handle(res, lang_key) {
+      handle({ res, lang_key }) {
         respond_html(
           res,
           lang_key,
@@ -210,7 +215,7 @@ function make_router() {
     {
       path: '/provider',
       method: 'POST',
-      async handle(res, lang_key, query, json) {
+      async handle({ json }) {
         json.write('success')
       }
     }
