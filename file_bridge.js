@@ -94,6 +94,7 @@ function make_router() {
             <p>
               <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
             </p>
+            <p id="serve_tip"></p>
             <main></main>
             <style>
               details {
@@ -115,7 +116,7 @@ function make_router() {
             </style>
             <script>
               let root = null
-
+              
               async function serve() {
                 const Dir = (handle, name) => ({
                   handle,
@@ -136,6 +137,13 @@ function make_router() {
                 }(
                   Dir(await window.showDirectoryPicker())
                 )
+                
+                document.getElementById('serve_tip').innerHTML = \`
+                  ${lang('已开启，客户端访问', 'serving on')[lang_key]}
+                  <a href="../as_client?id=${++server_id}" target="_blank">
+                    ${lang('这个链接', 'this link')[lang_key]}
+                  </a>
+                \`
                 
                 const main = document.querySelector('main')
                 main.innerHTML = function build_html(dir) {
