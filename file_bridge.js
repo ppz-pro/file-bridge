@@ -4,7 +4,7 @@ const Querystring = require('querystring')
 
 const PORT = 6666
 const router = make_router()
-let server_id = 0
+let provider_id = 0
 
 createServer(
   function handle(request, response) {
@@ -94,10 +94,10 @@ function make_router() {
           lang_common.title[lang_key],
           `
             <p>
-              ${lang('把这台电脑当作', 'This computor is a ')[lang_key]}
-              <a href='./as_server'>${lang('服务器', 'server')[lang_key]}</a>
+              ${lang('把这台电脑当作文件 ', 'This computor is a file ')[lang_key]}
+              <a href='./as_server'>${lang('提供端', 'provider')[lang_key]}</a>
               ${lang('或者', 'or')[lang_key]}
-              <a href='./as_client'>${lang('客户端', 'client')[lang_key]}</a>
+              <a href='./as_client'>${lang('下载端', 'downloader')[lang_key]}</a>
             </p>
           `
         )
@@ -109,7 +109,7 @@ function make_router() {
         respond_html(
           res,
           lang_key,
-          lang_common.title_(lang('服务器', 'Server'), lang_key),
+          lang_common.title_(lang('提供端', 'Provider'), lang_key),
           `
             <p>
               <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
@@ -140,7 +140,7 @@ function make_router() {
             </style>
             <script>
               let root = null
-              let provider_id = ${++server_id}
+              let provider_id = ${++provider_id}
               async function serve() {
                 const Proto = self => Object.assign(Object.create({
                   toJSON() {
