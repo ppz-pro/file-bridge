@@ -4,6 +4,24 @@ const Querystring = require('querystring')
 
 const PORT = 6666
 const router = make_router()
+const provider_manager = new function() {
+  const map = new Map()
+  return {
+    set_provider(id, children) {
+      if (!map.has(id))
+        map.set(id, new Provider())
+      map.get(id).set_children(children)
+    }
+  }
+
+  /** 文件提供者 */
+  class Provider {
+    set_children(children) {
+      this.children = children
+    }
+  }
+}
+
 let provider_id = 0
 
 createServer(
@@ -30,6 +48,7 @@ createServer(
           res: response,
           lang_key: lang,
           query,
+          success: () => response.end('success'),
           json: {
             read: () => new Promise((resolve, reject) => {
               const result = []
@@ -204,7 +223,7 @@ function make_router() {
                 // 4. 上报服务器
                 http.POST('/provider', {
                   provider_id,
-                  tree: root.children,
+                  children: root.children,
                 })
               }
             </script>
@@ -215,8 +234,10 @@ function make_router() {
     {
       path: '/provider',
       method: 'POST',
-      async handle({ json }) {
-        json.write('success')
+      async handle({ json, success }) {
+        const { provider_id, children } = await json.read()
+        provider_manager.set_provider(provider_id, children)
+        success()
       }
     }
   ]
