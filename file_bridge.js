@@ -10,7 +10,7 @@ createServer(
   function handle(request, response) {
     try {
       console.log('receive request', request.url)
-      const [path, querystring] = request.url.split('?')
+      const [path_target, querystring] = request.url.split('?')
       let { lang, ...query } = Querystring.parse(querystring)
       switch(lang) {
         case 'cn':
@@ -24,7 +24,7 @@ createServer(
           break
       }
 
-      const handler = router.find(h => h.path == path)
+      const handler = router.find(({ path, method = 'GET' }) => path == path_target && method == request.method)
       if(handler)
         handler.handle(response, lang, query, {
           read: () => new Promise((resolve, reject) => {
@@ -197,7 +197,7 @@ function make_router() {
                 })
                 
                 // 4. 上报服务器
-                http.POST('/set_provider', {
+                http.POST('/provider', {
                   provider_id,
                   tree: root.children,
                 })
@@ -208,7 +208,8 @@ function make_router() {
       }
     },
     {
-      path: '/set_provider',
+      path: '/provider',
+      method: 'POST',
       async handle(res, lang_key, query, json) {
         json.write('success')
       }
