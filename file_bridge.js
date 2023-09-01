@@ -27,8 +27,10 @@ createServer(
       const handler = router.find(h => h.path == path)
       if(handler)
         handler.handle(response, lang, query)
-      else
-        response.end('<h1>404</h1>')
+      else {
+        response.writeHead(404)
+        response.end('404')
+      }
     } catch (err) {
       console.error(err)
     }
@@ -97,6 +99,10 @@ function make_router() {
             <p id="serve_tip"></p>
             <main></main>
             <style>
+              main:not(:empty) {
+                background: #00000008;
+                padding: .58em .88em;
+              }
               details {
                 line-height: 1;
               }
@@ -116,7 +122,7 @@ function make_router() {
             </style>
             <script>
               let root = null
-              
+
               async function serve() {
                 const Dir = (handle, name) => ({
                   handle,
