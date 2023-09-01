@@ -4,6 +4,7 @@ const Querystring = require('querystring')
 
 const PORT = 6666
 const router = make_router()
+let server_id = 0
 
 createServer(
   function handle(request, response) {
@@ -39,17 +40,18 @@ createServer(
 )
 
 function make_router() {
-  const multi_lang = (cn, en) => ({ cn, en })
-  const lang = {
-    title: multi_lang('文件桥', 'File Bridge'),
-    lang_declaration: multi_lang('zh', 'en'),
+  const lang = (cn, en) => ({ cn, en })
+  const lang_common = {
+    title: lang('文件桥', 'File Bridge'),
+    title_: (lang, key) => lang_common.title[key] + ' ' + lang[key],
+    lang_declaration: lang('zh', 'en'),
   }
 
   function respond_html(res, lang_key, title, body) {
     res.writeHead(200, { 'Content-Type': 'text/html;charset=utf8' })
     res.end(`
       <!DOCTYPE html>
-      <html lang='${lang.lang_declaration[lang_key]}'>
+      <html lang='${lang_common.lang_declaration[lang_key]}'>
         <head>
           <title>${title}</title>
           <meta charset='utf8'>
@@ -65,24 +67,95 @@ function make_router() {
   return [
     {
       path: '/',
-      lang: {
-        p1: multi_lang('把这台电脑当作', 'This computor is a '),
-        p2: multi_lang('服务器', 'server'),
-        p3: multi_lang('或者', 'or'),
-        p4: multi_lang('客户端', 'client')
-      },
       handle(res, lang_key) {
         respond_html(
           res,
           lang_key,
-          lang.title[lang_key],
+          lang_common.title[lang_key],
           `
             <p>
-              ${this.lang.p1[lang_key]}
-              <a href='./as_server'>${this.lang.p2[lang_key]}</a>
-              ${this.lang.p3[lang_key]}
-              <a href='./as_client'>${this.lang.p4[lang_key]}</a>
+              ${lang('把这台电脑当作', 'This computor is a ')[lang_key]}
+              <a href='./as_server'>${lang('服务器', 'server')[lang_key]}</a>
+              ${lang('或者', 'or')[lang_key]}
+              <a href='./as_client'>${lang('客户端', 'client')[lang_key]}</a>
             </p>
+          `
+        )
+      }
+    },
+    {
+      path: '/as_server',
+      handle(res, lang_key) {
+        respond_html(
+          res,
+          lang_key,
+          lang_common.title_(lang('服务器', 'Server'), lang_key),
+          `
+            <p>
+              <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
+            </p>
+            <main></main>
+            <style>
+              details {
+                line-height: 1;
+              }
+              summary {
+                cursor: pointer;
+              }
+              summary, .file_name {
+                padding: .3em .5em;
+              }
+              .file_name::before {
+                content: '# ';
+                opacity: .5;
+              }
+              .details_body {
+                padding: 0 1em;
+              }
+            </style>
+            <script>
+              let root = null
+
+              async function serve() {
+                const Dir = (handle, name) => ({
+                  handle,
+                  name,
+                  children: []
+                })
+                const File = (handle, name) => ({ handle, name })
+
+                root = await async function build_tree(dir) {
+                  for await (const [name, handle] of dir.handle.entries())
+                    dir.children.push(
+                      await {
+                        file: () => File(handle, name),
+                        directory: () => build_tree(Dir(handle, name))
+                      }[handle.kind]()
+                    )
+                  return dir
+                }(
+                  Dir(await window.showDirectoryPicker())
+                )
+                
+                const main = document.querySelector('main')
+                main.innerHTML = function build_html(dir) {
+                  return build_details(
+                    '/' + dir.name,
+                    dir.children.map(item => item.children
+                      ? build_html(item)
+                      : '<div class="file_name">' + item.name + '</div>'
+                    ).join('')
+                  )
+                }({
+                  name: '',
+                  children: root.children
+                })
+                function build_details(header, body) {
+                  return '<details><summary>' + header + '</summary><div class="details_body">' + body + '</div></details>'
+                }
+              }
+              
+            </script>
           `
         )
       }
