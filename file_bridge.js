@@ -42,12 +42,14 @@ function make_router() {
   const multi_lang = (cn, en) => ({ cn, en })
   const lang = {
     title: multi_lang('文件桥', 'File Bridge'),
+    lang_declaration: multi_lang('zh', 'en'),
   }
 
-  function write_html(res, title, body) {
+  function respond_html(res, lang_key, title, body) {
+    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf8' })
     res.end(`
       <!DOCTYPE html>
-      <html>
+      <html lang='${lang.lang_declaration[lang_key]}'>
         <head>
           <title>${title}</title>
           <meta charset='utf8'>
@@ -70,8 +72,9 @@ function make_router() {
         p4: multi_lang('客户端', 'client')
       },
       handle(res, lang_key) {
-        write_html(
+        respond_html(
           res,
+          lang_key,
           lang.title[lang_key],
           `
             <p>
