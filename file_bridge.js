@@ -5,19 +5,24 @@ const Querystring = require('querystring')
 const PORT = 6666
 const router = make_router()
 const provider_manager = new function() {
-  const map = new Map()
-  return {
-    set_provider(id, children) {
-      if (!map.has(id))
-        map.set(id, new Provider())
-      map.get(id).set_children(children)
-    }
-  }
-
   /** 文件提供者 */
   class Provider {
     set_children(children) {
       this.children = children
+    }
+  }
+
+  const map = new Map()
+
+  return {
+    set_provider(id, children) {
+      console.log('new provider', { id })
+      if (!map.has(id))
+        map.set(id, new Provider())
+      map.get(id).set_children(children)
+    },
+    get_provider(id) {
+      return map.get(id)?.children
     }
   }
 }
@@ -89,10 +94,6 @@ function make_router() {
         <head>
           <title>${title}</title>
           <meta charset='utf8'>
-        </head>
-        <body>
-          <h1>${title}</h1>
-          ${body}
           <script>
             window.http = new Proxy({}, {
               get(_, method) {
@@ -103,6 +104,10 @@ function make_router() {
               }
             })
           </script>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          ${body}
         </body>
       </html>
     `)
@@ -119,16 +124,16 @@ function make_router() {
           `
             <p>
               ${lang('把这台电脑当作文件 ', 'This computor is a file ')[lang_key]}
-              <a href='./as_server'>${lang('提供端', 'provider')[lang_key]}</a>
+              <a href='./as_provider'>${lang('提供端', 'provider')[lang_key]}</a>
               ${lang('或者', 'or')[lang_key]}
-              <a href='./as_client'>${lang('下载端', 'downloader')[lang_key]}</a>
+              <a href='./as_downloader'>${lang('下载端', 'downloader')[lang_key]}</a>
             </p>
           `
         )
       }
     },
     {
-      path: '/as_server',
+      path: '/as_provider',
       handle({ res, lang_key }) {
         respond_html(
           res,
@@ -198,7 +203,7 @@ function make_router() {
                 // 2. 填充提示信息
                 document.getElementById('serve_tip').innerHTML = \`
                   ${lang('已开启，客户端访问', 'serving on')[lang_key]}
-                  <a href="../as_client?id=\${provider_id}" target="_blank">
+                  <a href="../as_downloader?id=\${provider_id}" target="_blank">
                     ${lang('这个链接', 'this link')[lang_key]}
                   </a>
                 \`
@@ -238,6 +243,37 @@ function make_router() {
         const { provider_id, children } = await json.read()
         provider_manager.set_provider(provider_id, children)
         success()
+      }
+    },
+    {
+      path: '/provider',
+      handle({ query, json }) {
+        const id = parseInt(query.id)
+        json.write(provider_manager.get_provider(id))
+      }
+    },
+    {
+      path: '/as_downloader',
+      handle({ res, query, lang_key }) {
+        respond_html(
+          res,
+          lang_key,
+          lang_common.title[lang_key],
+          `
+            <main></main>
+            <script>
+              const provider_id = ${query.id}
+              if (!provider_id)
+                alert('${lang('未检测到“文件提供端 ID”', 'no provider ID')[lang_key]}')
+              main()
+
+              async function main() {
+                const children = await http.GET('provider?id=${query.id}')
+                console.log({ children })
+              }
+            </script>
+          `
+        ) 
       }
     }
   ]
