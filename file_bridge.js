@@ -89,11 +89,15 @@ function make_router() {
       summary, .file_name {
         padding: .3em .5em;
       }
+      a.file_name {
+        display: block;
+        text-decoration: none;
+      }
       .file_name::before {
         content: '#';
         font-weight: bold;
         margin-right: .66em;
-        opacity: .5;
+        color: #888;
       }
       .details_body {
         padding: 0 1.666em;
@@ -221,9 +225,9 @@ function make_router() {
       handle({ query, lang_key, respond_html }) {
         respond_html(
           lang_key,
-          lang_common.title[lang_key],
+          lang_common.title_(lang('Downloader', 'Downloader'), lang_key),
           `
-            <main></main>
+            ${File_tree()}
             <script>
               const provider_id = ${query.id}
               if (!provider_id)
@@ -232,7 +236,29 @@ function make_router() {
 
               async function main() {
                 const children = await http.GET('provider?id=${query.id}')
-                console.log({ children })
+
+                const build_details = (header, body) => \`
+                  <details>
+                    <summary>\${header}</summary>
+                    <div class="details_body">\${body}</div>
+                  </details>
+                \`
+                document.querySelector('main').innerHTML = function build_file_tree(dir, parent_path) {
+                  return build_details(
+                    '/' + dir.name,
+                    dir.children.map(item => {
+                      const path = parent_path + '/' + item.name
+                      return item.children
+                        ? build_file_tree(item, path)
+                        : \`
+                          <a
+                            class="file_name"
+                            href="./download?id=${query.id}&path=\${path}"
+                          >\${item.name}</a>
+                        \`
+                    }).join('')
+                  )
+                }({ name: '', children }, '')
               }
             </script>
           `
