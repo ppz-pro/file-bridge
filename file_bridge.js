@@ -253,7 +253,7 @@ function make_router() {
                         : \`
                           <a
                             class="file_name"
-                            href="./download?id=${query.id}&path=\${path}"
+                            href="./download?id=${query.id}&path=\${encodeURIComponent(path)}"
                           >\${item.name}</a>
                         \`
                     }).join('')
