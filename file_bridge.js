@@ -298,6 +298,7 @@ function make_router() {
                           <a
                             class="file_name"
                             target="_blank"
+                            download="\${item.name}"
                             href="./download?id=${query.id}&path=\${encodeURIComponent(path)}"
                           >\${item.name}</a>
                         \`
