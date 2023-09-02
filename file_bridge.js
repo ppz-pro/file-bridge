@@ -11,9 +11,27 @@ const provider_manager = new function() {
       this.children = children
     }
 
-    #to_download = []
+    #wait = []
     push(res, path) {
-      this.#to_download.push(res, path)
+      this.#wait.push({
+        res,
+        path,
+        status: 'to_check',
+      })
+    }
+
+    next() {
+      const next = this.#wait.find(item => item.status == 'to_check')
+      if (!next) return
+
+      next.status = 'checked'
+      return next.path
+    }
+
+    send(path, req) {
+      const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
+      wait.status = 'sending'
+      req.pipe(wait.res) // boring, huh?
     }
   }
 
@@ -27,7 +45,7 @@ const provider_manager = new function() {
       map.get(id).set_children(children)
     },
     get_provider(id) {
-      return map.get(id)?.children
+      return map.get(id)
     }
   }
 }
@@ -126,7 +144,9 @@ function make_router() {
             ${File_tree()}
             <script>
               let root = null
+              let heart_beat_id = null
               let provider_id = ${++provider_id}
+
               async function serve() {
                 const Proto = self => Object.assign(Object.create({
                   toJSON() {
@@ -187,6 +207,41 @@ function make_router() {
                   provider_id,
                   children: root.children,
                 })
+
+                // 5. clear heat beat
+                if (heart_beat_id)
+                  cleatInterval(heart_beat_id)
+                heart_beat_id = setInterval(async function upload() {
+                  console.log('heart beat')
+                  const { path } = await http.GET('/to_download?id=' + provider_id)
+                  console.log({ path })
+                  if (!path) return
+  
+                  upload()
+                  
+                  console.log('uploading ', path)
+                  const file_handle = async function get_handle(path_arr, siblings) {
+                    const target_name = path_arr.shift()
+                    const target = siblings.find(sib => sib.name == target_name)
+                    if (path_arr.length)
+                      return get_handle(
+                        path_arr,
+                        target.children,
+                      )
+                    else {
+
+                      console.log('upload file', await target.handle.getFile())
+
+                      fetch(
+                        \`/download?id=\${provider_id}&path=\` + encodeURIComponent(path),
+                        {
+                          method: 'POST',
+                          body: await target.handle.getFile()
+                        }
+                      )
+                    }
+                  }(path.split('/').slice(1), root.children)
+                }, 1000)
               }
             </script>
           `
@@ -206,7 +261,7 @@ function make_router() {
       path: '/provider',
       handle({ query, json }) {
         const id = parseInt(query.id)
-        json.write(provider_manager.get_provider(id))
+        json.write(provider_manager.get_provider(id)?.children)
       }
     },
     {
@@ -262,6 +317,30 @@ function make_router() {
         provider_manager.get_provider(id).push(res, query.path)
         // hahahahahahaha
       }
+    },
+    {
+      path: '/to_download',
+      handle({ query, json }) {
+        const id = parseInt(query.id)
+        const path = provider_manager.get_provider(id)?.next()
+        json.write({ path })
+      }
+    },
+    {
+      path: '/download',
+      method: 'POST',
+      handle({ req, query, success }) {
+        console.log('post download')
+        const { id, path } = query
+        const provider = provider_manager.get_provider(parseInt(id))
+        if (!provider)
+          console.error('no provider')
+        else {
+          console.log('sending', { id, path })
+          provider.send(path, req)
+        }
+        success()
+      }
     }
   ]
 }
@@ -278,6 +357,7 @@ function make_request_context(request, response, lang_key, query) {
   }
   const success = () => json.write('success')
   return {
+    req: request,
     res: response,
     lang_key, query, json, success,
     respond_html(lang, title, body) {
