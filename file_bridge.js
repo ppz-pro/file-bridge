@@ -81,6 +81,7 @@ function make_router() {
       }
       details {
         line-height: 1;
+        border-left: 1px solid #00000008;
       }
       summary {
         cursor: pointer;
@@ -273,6 +274,12 @@ function make_request_context(request, response, lang_key, query) {
                 }
               })
             </script>
+            <style>
+              body {
+                max-width: 1200px;
+                margin: 2em auto;
+              }
+            </style>
           </head>
           <body>
             <h1>${title}</h1>
