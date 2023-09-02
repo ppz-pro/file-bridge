@@ -10,6 +10,11 @@ const provider_manager = new function() {
     set_children(children) {
       this.children = children
     }
+
+    #to_download = []
+    push(res, path) {
+      this.#to_download.push(res, path)
+    }
   }
 
   const map = new Map()
@@ -107,24 +112,8 @@ function make_router() {
 
   return [
     {
+      // path: '/as_provider',
       path: '/',
-      handle({ lang_key, respond_html }) {
-        respond_html(
-          lang_key,
-          lang_common.title[lang_key],
-          `
-            <p>
-              ${lang('把这台电脑当作文件 ', 'This computor is a file ')[lang_key]}
-              <a href='./as_provider'>${lang('提供端', 'provider')[lang_key]}</a>
-              ${lang('或者', 'or')[lang_key]}
-              <a href='./as_downloader'>${lang('下载端', 'downloader')[lang_key]}</a>
-            </p>
-          `
-        )
-      }
-    },
-    {
-      path: '/as_provider',
       handle({ res, lang_key, respond_html }) {
         respond_html(
           lang_key,
@@ -171,7 +160,7 @@ function make_router() {
                 // 2. 填充提示信息
                 document.getElementById('serve_tip').innerHTML = \`
                   ${lang('已开启，客户端访问', 'serving on')[lang_key]}
-                  <a href="../as_downloader?id=\${provider_id}" target="_blank">
+                  <a href="../downloader?id=\${provider_id}" target="_blank">
                     ${lang('这个链接', 'this link')[lang_key]}
                   </a>
                 \`
@@ -221,7 +210,7 @@ function make_router() {
       }
     },
     {
-      path: '/as_downloader',
+      path: '/downloader',
       handle({ query, lang_key, respond_html }) {
         respond_html(
           lang_key,
@@ -253,6 +242,7 @@ function make_router() {
                         : \`
                           <a
                             class="file_name"
+                            target="_blank"
                             href="./download?id=${query.id}&path=\${encodeURIComponent(path)}"
                           >\${item.name}</a>
                         \`
@@ -263,6 +253,14 @@ function make_router() {
             </script>
           `
         ) 
+      }
+    },
+    {
+      path: '/download',
+      handle({ res, query }) {
+        const id = parseInt(query.id)
+        provider_manager.get_provider(id).push(res, query.path)
+        // hahahahahahaha
       }
     }
   ]
@@ -303,7 +301,8 @@ function make_request_context(request, response, lang_key, query) {
             <style>
               body {
                 max-width: 1200px;
-                margin: 2em auto;
+                margin: 0 auto;
+                padding: 2em 3em;
               }
             </style>
           </head>
