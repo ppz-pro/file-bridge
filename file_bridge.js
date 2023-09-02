@@ -72,7 +72,33 @@ function make_router() {
     lang_declaration: lang('zh', 'en'),
   }
 
-  
+  const File_tree = () => `
+    <main></main>
+    <style>
+      main:not(:empty) {
+        background: #00000008;
+        padding: .58em .88em;
+      }
+      details {
+        line-height: 1;
+      }
+      summary {
+        cursor: pointer;
+      }
+      summary, .file_name {
+        padding: .3em .5em;
+      }
+      .file_name::before {
+        content: '#';
+        font-weight: bold;
+        margin-right: .66em;
+        opacity: .5;
+      }
+      .details_body {
+        padding: 0 1.666em;
+      }
+    </style>
+  `
 
   return [
     {
@@ -103,29 +129,7 @@ function make_router() {
               <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
             </p>
             <p id="serve_tip"></p>
-            <main></main>
-            <style>
-              main:not(:empty) {
-                background: #00000008;
-                padding: .58em .88em;
-              }
-              details {
-                line-height: 1;
-              }
-              summary {
-                cursor: pointer;
-              }
-              summary, .file_name {
-                padding: .3em .5em;
-              }
-              .file_name::before {
-                content: '# ';
-                opacity: .5;
-              }
-              .details_body {
-                padding: 0 1em;
-              }
-            </style>
+            ${File_tree()}
             <script>
               let root = null
               let provider_id = ${++provider_id}
