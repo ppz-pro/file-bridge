@@ -49,21 +49,7 @@ createServer(
 
       const handler = router.find(({ path, method = 'GET' }) => path == path_target && method == request.method)
       if(handler)
-        handler.handle({
-          res: response,
-          lang_key: lang,
-          query,
-          success: () => response.end('success'),
-          json: {
-            read: () => new Promise((resolve, reject) => {
-              const result = []
-              request.on('data', chunk => result.push(chunk))
-              request.on('end', () => resolve(JSON.parse(result.join(''))))
-              request.on('error', reject)
-            }),
-            write: data => response.end(JSON.stringify(data))
-          }
-        })
+        handler.handle(make_request_context(request, response, lang, query))
       else {
         response.writeHead(404)
         response.end('404')
@@ -86,39 +72,13 @@ function make_router() {
     lang_declaration: lang('zh', 'en'),
   }
 
-  function respond_html(res, lang_key, title, body) {
-    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf8' })
-    res.end(`
-      <!DOCTYPE html>
-      <html lang='${lang_common.lang_declaration[lang_key]}'>
-        <head>
-          <title>${title}</title>
-          <meta charset='utf8'>
-          <script>
-            window.http = new Proxy({}, {
-              get(_, method) {
-                return (path, data) => fetch(path, {
-                  method,
-                  body: data && JSON.stringify(data)
-                }).then(res => res.json())
-              }
-            })
-          </script>
-        </head>
-        <body>
-          <h1>${title}</h1>
-          ${body}
-        </body>
-      </html>
-    `)
-  }
+  
 
   return [
     {
       path: '/',
-      handle({ res, lang_key }) {
+      handle({ lang_key, respond_html }) {
         respond_html(
-          res,
           lang_key,
           lang_common.title[lang_key],
           `
@@ -134,9 +94,8 @@ function make_router() {
     },
     {
       path: '/as_provider',
-      handle({ res, lang_key }) {
+      handle({ res, lang_key, respond_html }) {
         respond_html(
-          res,
           lang_key,
           lang_common.title_(lang('提供端', 'Provider'), lang_key),
           `
@@ -254,9 +213,8 @@ function make_router() {
     },
     {
       path: '/as_downloader',
-      handle({ res, query, lang_key }) {
+      handle({ query, lang_key, respond_html }) {
         respond_html(
-          res,
           lang_key,
           lang_common.title[lang_key],
           `
@@ -277,4 +235,47 @@ function make_router() {
       }
     }
   ]
+}
+
+function make_request_context(request, response, lang_key, query) {
+  const json = {
+    read: () => new Promise((resolve, reject) => {
+      const result = []
+      request.on('data', chunk => result.push(chunk))
+      request.on('end', () => resolve(JSON.parse(result.join(''))))
+      request.on('error', reject)
+    }),
+    write: data => response.end(JSON.stringify(data))
+  }
+  const success = () => json.write('success')
+  return {
+    res: response,
+    lang_key, query, json, success,
+    respond_html(lang, title, body) {
+      response.writeHead(200, { 'Content-Type': 'text/html;charset=utf8' })
+      response.end(`
+        <!DOCTYPE html>
+        <html lang='${{ cn: 'zh', en: 'en' }[lang]}'>
+          <head>
+            <title>${title}</title>
+            <meta charset='utf8'>
+            <script>
+              window.http = new Proxy({}, {
+                get(_, method) {
+                  return (path, data) => fetch(path, {
+                    method,
+                    body: data && JSON.stringify(data)
+                  }).then(res => res.json())
+                }
+              })
+            </script>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            ${body}
+          </body>
+        </html>
+      `)
+    }
+  }
 }
