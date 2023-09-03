@@ -382,14 +382,45 @@ function make_request_context(request, response, lang_key, query) {
             <style>
               body {
                 max-width: 1200px;
-                margin: 0 auto;
-                padding: 2em 3em;
+                margin: 2em auto;
+                padding: 0 3em;
+                position: relative;
+              }
+              .options_container {
+                font-size: small;
+                position: absolute;
+                right: 0;
+                top: 0;
+                display: flex;
+                align-items: center;
+              }
+              .options_container > * {
+                margin: 0 1em;
               }
             </style>
           </head>
           <body>
             <h1>${title}</h1>
             ${body}
+            <div class="options_container">
+              <a href="https://github.com/ppz-pro/file-bridge" target="_blank">Github</a>
+              <div class="option_pair multi_lang"></div>
+            </div>
+            <script>
+              ;(function init_multi_lang() {
+                const container = document.querySelector('.option_pair.multi_lang')
+                const search = new URLSearchParams(location.search)
+                const lang = search.get('lang') || 'cn'
+                const cn_btn = document.createElement('a')
+                cn_btn.innerHTML = '中文'
+                const en_btn = document.createElement('a')
+                en_btn.innerHTML = 'English'
+                const is_cn = lang == 'cn'
+                search.set('lang', is_cn ? 'en' : 'cn')
+                ;(is_cn ? en_btn : cn_btn).href = \`javascript: location.href='\${location.pathname}?\${search}'\`
+                container.append(cn_btn, ' / ', en_btn)
+              })()
+            </script>
           </body>
         </html>
       `)
