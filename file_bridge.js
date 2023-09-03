@@ -135,7 +135,7 @@ function make_router() {
       handle({ res, lang_key, respond_html }) {
         respond_html(
           lang_key,
-          lang_common.title_(lang('提供端', 'Provider'), lang_key),
+          lang_common.title_(lang('提供端', '- Provider'), lang_key),
           `
             <p>
               <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
@@ -269,7 +269,7 @@ function make_router() {
       handle({ query, lang_key, respond_html }) {
         respond_html(
           lang_key,
-          lang_common.title_(lang('Downloader', 'Downloader'), lang_key),
+          lang_common.title_(lang('下载端', '- Downloader'), lang_key),
           `
             ${File_tree()}
             <script>
