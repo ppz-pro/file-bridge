@@ -162,10 +162,20 @@ function make_router() {
 
                 // 5. heat beat
                 if (heart_beat_id)
-                  cleatInterval(heart_beat_id)
+                  clearInterval(heart_beat_id)
+                let fail = 0 // 心跳连续三次失败就 reload 页面
                 heart_beat_id = setInterval(async function heart_beat() {
-                  console.log('heart beat')
-                  const { path } = await http.GET('/to_download?id=' + provider_id)
+                  try {
+                    var { path, unknown_provider } = await http.GET('/to_download?id=' + provider_id)
+                    fail = 0
+                  } catch(err) {
+                    console.error('heart beat failed:', err)
+                    if (++fail > 3)
+                      reload('${lang('网络连接中断', 'Disconnected')[lang_key]}')
+                    return
+                  }
+                  if (unknown_provider) // “重新加载”会重新获取 provider id
+                    return reload('${lang('未知的提供端 id', 'Unknown Provider')[lang_key]}')
                   if (!path) return
                   // 获取到 path 之后，立刻获取下一个（否则 1 秒只能开始一个下载）
                   heart_beat()
@@ -186,6 +196,11 @@ function make_router() {
                       )
                   })(path.split('/').slice(1), root.children)
                 }, 1000)
+                function reload(msg) {
+                  clearInterval(heart_beat_id)
+                  alert(msg)
+                  location.reload()
+                }
               }
             </script>
           `
@@ -201,12 +216,14 @@ function make_router() {
         success()
       }
     },
-    { // 提供端接口：心跳（保持与桥的连接）、获取待下载文件路径
+    { // 提供端接口：心跳（保持与桥的连接）、获取“待下载文件”路径
       path: '/to_download',
       handle({ query, json }) {
-        const id = parseInt(query.id)
-        const path = provider_manager.get_provider(id)?.next()
-        json.write({ path })
+        const provider = provider_manager.get_provider(parseInt(query.id))
+        if (provider)
+          json.write({ path: provider.next() })
+        else
+          json.write({ unknown_provider: true })
       }
     },
     { // 提供端接口：上传“待下载文件”
@@ -308,7 +325,6 @@ function make_provider_manager() {
     next() { // 下一个“待下载”目标
       const next = this.#wait.find(item => item.status == 'to_check')
       if (!next) return
-
       next.status = 'checked'
       return next.path
     }
