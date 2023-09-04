@@ -4,60 +4,16 @@ const Querystring = require('querystring')
 
 const PORT = 6666
 const router = make_router()
-const provider_manager = new function() {
-  /** 文件提供者 */
-  class Provider {
-    set_children(children) {
-      this.children = children
-    }
-
-    #wait = []
-    push(res, path) {
-      this.#wait.push({
-        res,
-        path,
-        status: 'to_check',
-      })
-    }
-
-    next() {
-      const next = this.#wait.find(item => item.status == 'to_check')
-      if (!next) return
-
-      next.status = 'checked'
-      return next.path
-    }
-
-    send(path, req) {
-      const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
-      wait.status = 'sending'
-      req.pipe(wait.res)
-    }
-  }
-
-  const map = new Map()
-
-  return {
-    set_provider(id, children) {
-      console.log('new provider', { id })
-      if (!map.has(id))
-        map.set(id, new Provider())
-      map.get(id).set_children(children)
-    },
-    get_provider(id) {
-      return map.get(id)
-    }
-  }
-}
+const provider_manager = make_provider_manager()
 
 let provider_id = 0
 
 createServer(
   function handle(request, response) {
     try {
-      console.log('receive request', request.url)
-      const [path_target, querystring] = request.url.split('?')
-      let { lang, ...query } = Querystring.parse(querystring)
+      // console.log('receive request', request.url)
+      const [path_target, ...querystring] = request.url.split('?') // 第一个问号前是 path，之后是 query
+      let { lang, ...query } = Querystring.parse(querystring.join('?'))
       switch(lang) {
         case 'cn':
         case 'en':
@@ -78,7 +34,7 @@ createServer(
         response.end('404')
       }
     } catch (err) {
-      console.error(err)
+      console.error('error occured on handling request', err)
     }
   }
 ).listen(PORT,
@@ -92,9 +48,8 @@ function make_router() {
   const lang_common = {
     title: lang('文件桥', 'File Bridge'),
     title_: (lang, key) => lang_common.title[key] + ' ' + lang[key],
-    lang_declaration: lang('zh', 'en'),
   }
-
+  // 目录树
   const File_tree = () => `
     <main></main>
     <style>
@@ -129,10 +84,9 @@ function make_router() {
   `
 
   return [
-    {
-      // path: '/as_provider',
+    { // 页面：提供端
       path: '/',
-      handle({ res, lang_key, respond_html }) {
+      handle({ lang_key, respond_html }) {
         respond_html(
           lang_key,
           lang_common.title_(lang('提供端', '- Provider'), lang_key),
@@ -248,23 +202,41 @@ function make_router() {
         )
       }
     },
-    {
-      path: '/provider',
+    { // 提供端接口：上报用户指定的目录结构
       method: 'POST',
+      path: '/provider',
       async handle({ json, success }) {
         const { provider_id, children } = await json.read()
         provider_manager.set_provider(provider_id, children)
         success()
       }
     },
-    {
-      path: '/provider',
+    { // 提供端接口：心跳（保持与桥的连接）、获取待下载文件路径
+      path: '/to_download',
       handle({ query, json }) {
         const id = parseInt(query.id)
-        json.write(provider_manager.get_provider(id)?.children)
+        const path = provider_manager.get_provider(id)?.next()
+        json.write({ path })
       }
     },
-    {
+    { // 提供端接口：上传“待下载文件”
+      path: '/download',
+      method: 'POST',
+      handle({ req, query, success }) {
+        console.log('post download')
+        const { id, path } = query
+        const provider = provider_manager.get_provider(parseInt(id))
+        if (!provider)
+          console.error('no provider')
+        else {
+          console.log('sending', { id, path })
+          provider.send(path, req)
+        }
+        success()
+      }
+    },
+
+    { // 页面：下载端
       path: '/downloader',
       handle({ query, lang_key, respond_html }) {
         respond_html(
@@ -311,41 +283,69 @@ function make_router() {
         ) 
       }
     },
-    {
+    { // 下载端接口：获取提供端目录结构
+      path: '/provider',
+      handle({ query, json }) {
+        const id = parseInt(query.id)
+        json.write(provider_manager.get_provider(id)?.children)
+      }
+    },
+    { // 下载端接口：下载文件
       path: '/download',
       handle({ res, query }) {
         const id = parseInt(query.id)
         provider_manager.get_provider(id).push(res, query.path)
       }
     },
-    {
-      path: '/to_download',
-      handle({ query, json }) {
-        const id = parseInt(query.id)
-        const path = provider_manager.get_provider(id)?.next()
-        json.write({ path })
-      }
-    },
-    {
-      path: '/download',
-      method: 'POST',
-      handle({ req, query, success }) {
-        console.log('post download')
-        const { id, path } = query
-        const provider = provider_manager.get_provider(parseInt(id))
-        if (!provider)
-          console.error('no provider')
-        else {
-          console.log('sending', { id, path })
-          provider.send(path, req)
-        }
-        success()
-      }
-    }
   ]
 }
 
+function make_provider_manager() {
+  class Provider {
+    set_children(children) { // 提供端目录结构
+      this.children = children
+    }
+
+    #wait = [] // 待下载列表
+    push(res, path) {
+      this.#wait.push({
+        res,
+        path,
+        status: 'to_check',
+      })
+    }
+
+    next() { // 下一个“待下载”目标
+      const next = this.#wait.find(item => item.status == 'to_check')
+      if (!next) return
+
+      next.status = 'checked'
+      return next.path
+    }
+
+    send(path, req) { // 传输文件
+      const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
+      wait.status = 'sending'
+      req.pipe(wait.res)
+    }
+  }
+
+  const map = new Map() // Map<provider_id => provider>
+  return { // 这个对象用来管理“提供端”
+    set_provider(id, children) { // 管理端上报自己的目录结构，开始 serving
+      console.log('new provider', { id })
+      if (!map.has(id)) // 如果 map 里没有，则是一个新的管理端；如果有，则是管理端重选了 serving 目录
+        map.set(id, new Provider())
+      map.get(id).set_children(children)
+    },
+    get_provider(id) {
+      return map.get(id)
+    }
+  }
+}
+
 function make_request_context(request, response, lang_key, query) {
+  // 读写 json 数据
   const json = {
     read: () => new Promise((resolve, reject) => {
       const result = []
@@ -355,12 +355,14 @@ function make_request_context(request, response, lang_key, query) {
     }),
     write: data => response.end(JSON.stringify(data))
   }
-  const success = () => json.write('success')
   return {
     req: request,
     res: response,
-    lang_key, query, json, success,
-    respond_html(lang, title, body) {
+    lang_key, query, json,
+    success() { // 写入响应：成功
+      json.write('success')
+    },
+    respond_html(lang, title, body) { // 写入响应：页面（html）
       response.writeHead(200, { 'Content-Type': 'text/html;charset=utf8' })
       response.end(`
         <!DOCTYPE html>
@@ -369,7 +371,7 @@ function make_request_context(request, response, lang_key, query) {
             <title>${title}</title>
             <meta charset='utf8'>
             <script>
-              window.http = new Proxy({}, {
+              window.http = new Proxy({}, { // 封装一个 http 客户端（类似 axios）
                 get(_, method) {
                   return (path, data) => fetch(path, {
                     method,
@@ -385,7 +387,7 @@ function make_request_context(request, response, lang_key, query) {
                 padding: 0 3em;
                 position: relative;
               }
-              .options_container {
+              .options_container { /* 右上角那些链接、按钮 */
                 font-size: small;
                 position: absolute;
                 right: 0;
@@ -406,7 +408,7 @@ function make_request_context(request, response, lang_key, query) {
               <div class="option_pair multi_lang"></div>
             </div>
             <script>
-              ;(function init_multi_lang() {
+              ;(function init_multi_lang() { // 中英文切换
                 const container = document.querySelector('.option_pair.multi_lang')
                 const search = new URLSearchParams(location.search)
                 const lang = search.get('lang') || 'cn'
