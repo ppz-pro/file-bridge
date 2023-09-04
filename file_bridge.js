@@ -99,7 +99,7 @@ function make_router() {
             <script>
               let root = null
               let heart_beat_id = null
-              let provider_id = ${++provider_id}
+              let provider_id = '${new Date().getTime()}-${++provider_id}'
 
               async function serve() {
                 const Proto = self => Object.assign(Object.create({
@@ -155,7 +155,7 @@ function make_router() {
                 })
                 
                 // 4. 上报服务器
-                http.POST('/provider', {
+                await http.POST('/provider', {
                   provider_id,
                   children: root.children,
                 })
@@ -219,7 +219,7 @@ function make_router() {
     { // 提供端接口：心跳（保持与桥的连接）、获取“待下载文件”路径
       path: '/to_download',
       handle({ query, json }) {
-        const provider = provider_manager.get_provider(parseInt(query.id))
+        const provider = provider_manager.get_provider(query.id)
         if (provider)
           json.write({ path: provider.next() })
         else
@@ -229,17 +229,10 @@ function make_router() {
     { // 提供端接口：上传“待下载文件”
       path: '/download',
       method: 'POST',
-      handle({ req, query, success }) {
-        console.log('post download')
-        const { id, path } = query
-        const provider = provider_manager.get_provider(parseInt(id))
-        if (!provider)
-          console.error('no provider')
-        else {
-          console.log('sending', { id, path })
-          provider.send(path, req)
-        }
-        success()
+      async handle({ req, query, success }) {
+        console.log('posting', query)
+        await provider_manager.get_provider(query.id).send(query.path, req)
+        success() // 这个响应是发给提供端的：“你已经上传成功了”
       }
     },
 
@@ -252,13 +245,12 @@ function make_router() {
           `
             ${File_tree()}
             <script>
-              const provider_id = ${query.id}
-              if (!provider_id)
-                alert('${lang('未检测到“文件提供端 ID”', 'no provider ID')[lang_key]}')
-              main()
+              ;(async function main() {
+                const provider_id = '${query.id || ''}'
+                if (!provider_id)
+                  return alert('${lang('未检测到“文件提供端 ID”', 'no provider ID')[lang_key]}')
 
-              async function main() {
-                const children = await http.GET('provider?id=${query.id}')
+                const children = await http.GET('provider?id=' + provider_id)
 
                 const build_details = (header, body) => \`
                   <details>
@@ -284,24 +276,22 @@ function make_router() {
                     }).join('')
                   )
                 }({ name: '', children }, '')
-              }
+              })()
             </script>
           `
-        ) 
+        )
       }
     },
     { // 下载端接口：获取提供端目录结构
       path: '/provider',
       handle({ query, json }) {
-        const id = parseInt(query.id)
-        json.write(provider_manager.get_provider(id)?.children)
+        json.write(provider_manager.get_provider(query.id).children)
       }
     },
     { // 下载端接口：下载文件
       path: '/download',
       handle({ res, query }) {
-        const id = parseInt(query.id)
-        provider_manager.get_provider(id).push(res, query.path)
+        provider_manager.get_provider(query.id).push(res, query.path)
       }
     },
   ]
@@ -332,14 +322,22 @@ function make_provider_manager() {
     send(path, req) { // 传输文件
       const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
       wait.status = 'sending'
+      wait.res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': 'attachment',
+      })
       req.pipe(wait.res)
+      return new Promise((resolve, reject) => {
+        req.on('error', reject)
+        req.on('end', resolve)
+      })
     }
   }
 
   const map = new Map() // Map<provider_id => provider>
   return { // 这个对象用来管理“提供端”
     set_provider(id, children) { // 管理端上报自己的目录结构，开始 serving
-      console.log('new provider', { id })
+      console.log('setting up provider', { id })
       if (!map.has(id)) // 如果 map 里没有，则是一个新的管理端；如果有，则是管理端重选了 serving 目录
         map.set(id, new Provider())
       map.get(id).set_children(children)
