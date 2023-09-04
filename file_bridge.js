@@ -320,8 +320,9 @@ function make_provider_manager() {
     }
 
     send(path, req) { // 传输文件
-      const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
-      wait.status = 'sending'
+      const index = this.#wait.findIndex(item => item.path == path && item.status == 'checked')
+      const wait = this.#wait[index] // 获取
+      this.#wait.splice(index, 1) // 删除
       wait.res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': 'attachment',
