@@ -161,23 +161,24 @@ function make_router() {
                 })
 
                 // 5. heat beat
-                if (heart_beat_id)
-                  clearInterval(heart_beat_id)
-                let fail = 0 // 心跳连续三次失败就 reload 页面
-                heart_beat_id = setInterval(async function heart_beat() {
+                clearTimeout(heart_beat_id)
+                let fail = 0 // 心跳连续失败计数
+                ;(async function heart_beat() {
                   try {
                     var { path, unknown_provider } = await http.GET('/to_download?id=' + provider_id)
-                    fail = 0
+                    fail = 0 // 连续失败归零
                   } catch(err) {
                     console.error('heart beat failed:', err)
-                    if (++fail > 3)
-                      reload('${lang('网络连接中断', 'Disconnected')[lang_key]}')
-                    return
+                    if (++fail < 3) // 三次以内，继续心跳
+                      return heart_beat_id = setTimeout(heart_beat, 1000)
+                    else // 三次以上，reload
+                      return reload('${lang('网络连接中断', 'Disconnected')[lang_key]}')
                   }
                   if (unknown_provider) // “重新加载”会重新获取 provider id
                     return reload('${lang('未知的提供端 id', 'Unknown Provider')[lang_key]}')
-                  if (!path) return
-                  // 获取到 path 之后，立刻获取下一个（否则 1 秒只能开始一个下载）
+                  if (!path) // 没有 path：普通心跳，定时下一次心跳
+                    return heart_beat_id = setTimeout(heart_beat, 1000)
+                  // 有 path：立刻再心跳（否则 1 秒只能开始一个下载）
                   heart_beat()
                   // 开始上传
                   console.log('uploading ', path)
@@ -195,9 +196,8 @@ function make_router() {
                         }
                       )
                   })(path.split('/').slice(1), root.children)
-                }, 1000)
+                })()
                 function reload(msg) {
-                  clearInterval(heart_beat_id)
                   alert(msg)
                   location.reload()
                 }
@@ -379,8 +379,9 @@ function make_request_context(request, response, lang_key, query) {
             <script>
               window.http = new Proxy({}, { // 封装一个 http 客户端（类似 axios）
                 get(_, method) {
-                  return (path, data) => fetch(path, {
+                  return (path, data, timeout = 3000) => fetch(path, {
                     method,
+                    signal: AbortSignal.timeout(timeout), // 超时
                     body: data && JSON.stringify(data)
                   }).then(res => res.json())
                 }
