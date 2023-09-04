@@ -31,7 +31,7 @@ const provider_manager = new function() {
     send(path, req) {
       const wait = this.#wait.find(item => item.path == path && item.status == 'checked')
       wait.status = 'sending'
-      req.pipe(wait.res) // boring, huh?
+      req.pipe(wait.res)
     }
   }
 
@@ -316,7 +316,6 @@ function make_router() {
       handle({ res, query }) {
         const id = parseInt(query.id)
         provider_manager.get_provider(id).push(res, query.path)
-        // hahahahahahaha
       }
     },
     {
