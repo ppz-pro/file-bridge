@@ -49,7 +49,7 @@ function make_router() {
     title: lang('文件桥', 'File Bridge'),
     title_: (lang, key) => lang_common.title[key] + ' ' + lang[key],
   }
-  // 目录树
+  // 渲染目录树
   const File_tree = () => `
     <main></main>
     <style>
@@ -127,9 +127,7 @@ function make_router() {
                       }[handle.kind]()
                     )
                   return dir
-                }(
-                  Dir(await window.showDirectoryPicker())
-                )
+                }(Dir(await window.showDirectoryPicker()))
 
                 // 2. 填充提示信息
                 document.getElementById('serve_tip').innerHTML = \`
@@ -162,30 +160,23 @@ function make_router() {
                   children: root.children,
                 })
 
-                // 5. clear heat beat
+                // 5. heat beat
                 if (heart_beat_id)
                   cleatInterval(heart_beat_id)
-                heart_beat_id = setInterval(async function upload() {
+                heart_beat_id = setInterval(async function heart_beat() {
                   console.log('heart beat')
                   const { path } = await http.GET('/to_download?id=' + provider_id)
-                  console.log({ path })
                   if (!path) return
-  
-                  upload()
-                  
+                  // 获取到 path 之后，立刻获取下一个（否则 1 秒只能开始一个下载）
+                  heart_beat()
+                  // 开始上传
                   console.log('uploading ', path)
-                  const file_handle = async function get_handle(path_arr, siblings) {
-                    const target_name = path_arr.shift()
+                  ;(async function upload(path_arr, siblings) { // 递归找到目标文件并上传
+                    const target_name = path_arr.shift() // 路径一层一层剥开
                     const target = siblings.find(sib => sib.name == target_name)
-                    if (path_arr.length)
-                      return get_handle(
-                        path_arr,
-                        target.children,
-                      )
-                    else {
-
-                      console.log('upload file', await target.handle.getFile())
-
+                    if (path_arr.length) // 如果还没剥完，就进入下一层递归
+                      return upload(path_arr, target.children)
+                    else // 剥完了，就开始上传（递归结束）
                       fetch(
                         \`/download?id=\${provider_id}&path=\` + encodeURIComponent(path),
                         {
@@ -193,8 +184,7 @@ function make_router() {
                           body: await target.handle.getFile()
                         }
                       )
-                    }
-                  }(path.split('/').slice(1), root.children)
+                  })(path.split('/').slice(1), root.children)
                 }, 1000)
               }
             </script>
