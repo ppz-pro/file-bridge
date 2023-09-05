@@ -9,7 +9,7 @@ const provider_manager = make_provider_manager()
 let provider_id = 0
 
 createServer(
-  function handle(request, response) {
+  async function handle(request, response) {
     try {
       // console.log('receive request', request.url)
       const [path_target, ...querystring] = request.url.split('?') // 第一个问号前是 path，之后是 query
@@ -28,13 +28,13 @@ createServer(
 
       const handler = router.find(({ path, method = 'GET' }) => path == path_target && method == request.method)
       if(handler)
-        handler.handle(make_request_context(request, response, lang, query))
+        await handler.handle(make_request_context(request, response, lang, query))
       else {
         response.writeHead(404)
         response.end('404')
       }
     } catch (err) {
-      console.error('error occured on handling request', err)
+      console.error('error occured on handling request:', err)
     }
   }
 ).listen(PORT,
@@ -50,38 +50,58 @@ function make_router() {
     title_: (lang, key) => lang_common.title[key] + ' ' + lang[key],
   }
   // 渲染目录树
-  const File_tree = () => `
+  const File_tree = lang_key => `
     <main></main>
+    <script>
+      function make_tree_details(dir_handle) { // 文件夹节点
+        const children_container = O.div({ className: 'details_body' })
+        const container = O.details(null,
+          O.summary(null, dir_handle.name),
+          children_container
+        )
+        container.addEventListener('toggle', function on_details_toggle() {
+          if(container.open) {
+            children_container.innerHTML = '<div class="tip">${lang('加载中', 'loading')[lang_key]}...</div>'
+            open_dir(dir_handle, children_container)
+          }
+        })
+        return container
+      }
+    </script>
     <style>
       main:not(:empty) {
         background: #00000008;
-        padding: .58em .88em;
+        padding: .58rem .88rem;
       }
       details {
         line-height: 1;
         border-left: 1px solid #00000008;
       }
+      summary, .file_container, .tip {
+        line-height: 1.6rem;
+      }
       summary {
         cursor: pointer;
       }
-      summary, .file_container {
-        padding: .3em .5em;
+      .details_body {
+        padding: 0 1.666rem;
+      }
+      .tip {
+        color: #666;
+        font-size: small;
       }
       .file_container::before {
         content: '#';
         font-weight: bold;
-        margin-right: .66em;
+        margin-right: .66rem;
         color: #888;
       }
       .file_container span {
-        margin-left: 1.6em;
+        margin-left: 1.6rem;
         font-size: small;
       }
       .file_container:not(:hover) span {
         color: #bbb;
-      }
-      .details_body {
-        padding: 0 1.666em;
       }
     </style>
   `
@@ -98,7 +118,7 @@ function make_router() {
               <button onclick="serve()">${lang('选择目录', 'Select a directory')[lang_key]}</button>
             </p>
             <p id="serve_tip"></p>
-            ${File_tree()}
+            ${File_tree(lang_key)}
             <script>
               const provider_id = '${new Date().getTime()}-${++provider_id}'
               let root_dir_handle = null
@@ -126,7 +146,7 @@ function make_router() {
                 let fail = 0 // 心跳连续失败计数
                 ;(async function heart_beat() {
                   try {
-                    var { path, unknown_provider } = await http.GET('/heart_beat?id=' + provider_id)
+                    var { unknown_provider, task } = await http.GET('/heart_beat?id=' + provider_id)
                     fail = 0 // 连续失败归零
                   } catch(err) {
                     console.error('heart beat failed:', err)
@@ -137,26 +157,63 @@ function make_router() {
                   }
                   if (unknown_provider) // “重新加载”会重新获取 provider id
                     return reload('${lang('未知的提供端 id', 'Unknown Provider')[lang_key]}')
-                  if (!path) // 没有 path：普通心跳，定时下一次心跳
-                    return heart_beat_id = setTimeout(heart_beat, 1000)
-                  // 有 path：立刻再心跳（否则 1 秒只能开始一个下载）
-                  heart_beat()
-                  // 开始上传
-                  console.log('uploading ', path)
-                  ;(async function upload(path_arr, siblings) { // 递归找到目标文件并上传
-                    const target_name = path_arr.shift() // 路径一层一层剥开
-                    const target = siblings.find(sib => sib.name == target_name)
-                    if (path_arr.length) // 如果还没剥完，就进入下一层递归
-                      return upload(path_arr, target.children)
-                    else // 剥完了，就开始上传（递归结束）
-                      fetch(
-                        \`/download?id=\${provider_id}&path=\` + encodeURIComponent(path),
-                        {
-                          method: 'POST',
-                          body: await target.handle.getFile()
-                        }
-                      )
-                  })(path.split('/').slice(1), root.children)
+                  if (task) {
+                    heart_beat() // 一次只传来一个任务，收到任务立刻跳下一次（否则一秒只能处理一个任务）
+                    if (task.ls) { // 获取目录
+                      console.log('posting ls', task.ls)
+                      const url = \`/ls?provider_id=\${provider_id}&task_id=\${task.id}\`
+                      try {
+                        await async function post_ls(path_arr, dir_handle) {
+                          const target_name = path_arr.shift() // 路径一层一层剥开
+                          console.log({ target_name })
+                          if (target_name)
+                            await post_ls(path_arr, await dir_handle.getDirectoryHandle(target_name))
+                          else
+                            http.POST(url, {
+                              data: await async function() {
+                                const list = []
+                                for await (const handle of dir_handle.values())
+                                  list.push({
+                                    name: handle.name,
+                                    size: handle.kind == 'file'
+                                      ? (await handle.getFile()).size
+                                      : undefined
+                                  })
+                                return list
+                              }()
+                            })
+                        }(
+                          task.ls.split('/').slice(2), // 如 /root/folder，split 之后得到 ['', 'root', 'folder']，其中前两项是不要的
+                          root_dir_handle,
+                        )
+                      } catch(err) {
+                        console.log
+                        http.POST(url, {
+                          error: '${lang('获取目录失败', 'failed to get directory')[lang_key]}'
+                        })
+                      }
+                    } else if (task.download) { // 下载文件
+                      console.log('uploading ', task.download)
+                      ;(async function upload(path_arr, dir_handle) { // 递归找到目标文件并上传
+                        // const target_name = path_arr.shift() // 路径一层一层剥开
+                        // const target = siblings.find(sib => sib.name == target_name)
+                        // if (path_arr.length) // 如果还没剥完，就进入下一层递归
+                        //   return upload(path_arr, target.children)
+                        // else // 剥完了，就开始上传（递归结束）
+                        //   fetch(
+                        //     \`/download?id=\${provider_id}&path=\` + encodeURIComponent(path),
+                        //     {
+                        //       method: 'POST',
+                        //       body: await target.handle.getFile()
+                        //     }
+                        //   )
+                      })(task.download.split('/'), root_dir_handle)
+                    } else {
+                      console.error({ task })
+                      throw Error('unknown task')
+                    }
+                  } else // 没有任务就等一秒
+                    heart_beat_id = setTimeout(heart_beat, 1000)
                 })()
                 function reload(msg) {
                   alert(msg)
@@ -164,18 +221,6 @@ function make_router() {
                 }
               }
 
-              function make_tree_details(dir_handle) { // 文件夹节点
-                const children_container = O.div({ className: 'details_body' })
-                const container = O.details(null,
-                  O.summary(null, dir_handle.name),
-                  children_container
-                )
-                container.addEventListener('toggle', function on_details_toggle() {
-                  if(container.open)
-                    open_dir(dir_handle, children_container)
-                })
-                return container
-              }
               async function open_dir(dir_handle, dir_children_container) {
                 const children = []
                 for await (const handle of dir_handle.values())
@@ -186,7 +231,7 @@ function make_router() {
                       )
                     : make_tree_details(handle)
                   )
-                dir_children_container.append(...children)
+                dir_children_container.replaceChildren(...children)
               }
             </script>
           `
@@ -197,81 +242,95 @@ function make_router() {
       method: 'POST',
       path: '/provider',
       async handle({ json, success }) {
-        const { provider_id, children } = await json.read()
-        provider_manager.set_provider(provider_id, children)
+        const { provider_id, root_dir_name } = await json.read()
+        provider_manager.set_provider(provider_id, root_dir_name)
         success()
       }
     },
     { // 提供端接口：心跳（保持与桥的连接）、获取“待下载文件”路径
-      path: '/to_download',
+      path: '/heart_beat',
       handle({ query, json }) {
         const provider = provider_manager.get_provider(query.id)
-        if (provider)
-          json.write({ path: provider.next() })
-        else
+        if (provider) {
+          let task = provider.wait_ls.check() || provider.wait_download.check()
+          if (task) {
+            const { id, params, type } = task
+            json.write({ task: { id, [type]: params } })
+          } else
+            json.write({ nothing: true })
+        } else
           json.write({ unknown_provider: true })
       }
     },
-    { // 提供端接口：上传“待下载文件”
+    { // 提供端接口：post download
+      method: 'POST',
       path: '/download',
       method: 'POST',
       async handle({ req, query, success }) {
-        console.log('posting', query)
+        console.log('posting download', query)
         await provider_manager.get_provider(query.id).send(query.path, req)
+        success() // 这个响应是发给提供端的：“你已经上传成功了”
+      }
+    },
+    { // 提供端接口：post ls
+      method: 'POST',
+      path: '/ls',
+      async handle({ query, json, success }) {
+        console.log('receiving ls', query)
+        const async_respond = provider_manager.get_provider(query.provider_id).wait_ls.get_respond_wrapper(parseInt(query.task_id))
+        await async_respond(await json.read())
         success() // 这个响应是发给提供端的：“你已经上传成功了”
       }
     },
 
     { // 页面：下载端
       path: '/downloader',
-      handle({ query, lang_key, respond_html }) {
+      handle({ query, lang_key, respond_html, res }) {
+        const provider = provider_manager.get_provider(query.id)
+        if (!provider)
+          return res.end('no provider: ' + query.id)
         respond_html(
           lang_key,
           lang_common.title_(lang('下载端', '- Downloader'), lang_key),
           `
-            ${File_tree()}
+            ${File_tree(lang_key)}
             <script>
-              ;(async function main() {
-                const provider_id = '${query.id || ''}'
-                if (!provider_id)
-                  return alert('${lang('未检测到“文件提供端 ID”', 'no provider ID')[lang_key]}')
+              const provider_id = '${query.id}'
+              document.querySelector('main').replaceChildren(
+                make_tree_details({
+                  name: '${provider.root_name}',
+                  path: '/${provider.root_name}',
+                })
+              )
 
-                const children = await http.GET('provider?id=' + provider_id)
+              async function open_dir({ name, path }, children_container) {
+                const encoded_path = encodeURIComponent(path)
+                const res = await http.GET(\`/ls?id=\${provider_id}&path=\${encoded_path}\`)
+                if (res.error) return alert(res.error)
 
-                const build_details = (header, body) => \`
-                  <details>
-                    <summary>\${header}</summary>
-                    <div class="details_body">\${body}</div>
-                  </details>
-                \`
-                document.querySelector('main').innerHTML = function build_file_tree(dir, parent_path) {
-                  return build_details(
-                    '/' + dir.name,
-                    dir.children.map(item => {
-                      const path = parent_path + '/' + item.name
-                      return item.children
-                        ? build_file_tree(item, path)
-                        : \`
-                          <a
-                            class="file_name"
-                            target="_blank"
-                            download="\${item.name}"
-                            href="./download?id=${query.id}&path=\${encodeURIComponent(path)}"
-                          >\${item.name}</a>
-                        \`
-                    }).join('')
+                const children = []
+                for (const { name, size } of res.data)
+                  children.push(size !== undefined
+                    ? O.div({ className: 'file_container' },
+                        O.a({
+                          href: './download?id=\${provider_id}&path=\${encoded_path}'
+                        }, name),
+                        O.span(null, size),
+                      )
+                    : make_tree_details({ name, path: path + '/' + name })
                   )
-                }({ name: '', children }, '')
-              })()
+                children_container.replaceChildren(...children)
+              }
             </script>
           `
         )
       }
     },
-    { // 下载端接口：获取提供端目录结构
-      path: '/provider',
+    { // 下载端接口：获取提供端目录
+      path: '/ls',
       handle({ query, json }) {
-        json.write(provider_manager.get_provider(query.id).children)
+        provider_manager.get_provider(query.id).wait_ls.push(query.path, list => json.write(list))
+        console.log('waiting ls : ', query)
       }
     },
     { // 下载端接口：下载文件
@@ -284,50 +343,75 @@ function make_router() {
 }
 
 function make_provider_manager() {
+  let wait_id = 0
+  /** 某种请求的等待 */
+  class Wait {
+    #name = null
+    #map = new Map()
+    #to_check = [] // 先进先出
+    constructor(name) {
+      this.#name = name
+    }
+    push(params, respond) { // params: 请求的参数, respond: 响应请求
+      const id = ++wait_id
+      const item = {
+        id, params, respond,
+        type: this.#name,
+      }
+      this.#map.set(id, item)
+      this.#to_check.push(item) // 推进去（最后一个）
+      console.log('new waiting', this.#name, id, params)
+    }
+    check() {
+      const target = this.#to_check.shift() // 取出来（第一个）
+      if (target)
+        console.log('checking task', target)
+      return target
+    }
+    get_respond_wrapper(id) {
+      const target = this.#map.get(id)
+      console.log('get respond wrapper', id)
+      return async (...args) => {
+        try {
+          console.log('responding', id)
+          await target.respond(...args)
+          console.log('responded', id)
+        } catch (err) {
+          console.error(`error on respond Wait(${this.#name}, ${id}, ${target.params}): `, err)
+        }
+        this.#map.delete(id)
+      }
+    }
+  }
   class Provider {
-    set_children(children) { // 提供端目录结构
-      this.children = children
+    wait_ls = new Wait('ls') // 等待下载端的 ls 请求
+    wait_download = new Wait('download') // 等待下载端的 download 请求
+    set_root_name(root_name) { // 提供端目录结构
+      this.root_name = root_name
     }
-
-    #wait = [] // 待下载列表
-    push(res, path) {
-      this.#wait.push({
-        res,
-        path,
-        status: 'to_check',
-      })
-    }
-
-    next() { // 下一个“待下载”目标
-      const next = this.#wait.find(item => item.status == 'to_check')
-      if (!next) return
-      next.status = 'checked'
-      return next.path
-    }
-
-    send(path, req) { // 传输文件
-      const index = this.#wait.findIndex(item => item.path == path && item.status == 'checked')
-      const wait = this.#wait[index] // 获取
-      this.#wait.splice(index, 1) // 删除
-      wait.res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': 'attachment',
-      })
-      req.pipe(wait.res)
-      return new Promise((resolve, reject) => {
-        req.on('error', reject)
-        req.on('end', resolve)
-      })
-    }
+  //   send(path, req) { // 传输文件
+  //     const index = this.#wait.findIndex(item => item.path == path && item.status == 'checked')
+  //     const wait = this.#wait[index] // 获取
+  //     this.#wait.splice(index, 1) // 删除
+  //     wait.res.writeHead(200, {
+  //       'Content-Type': 'application/octet-stream',
+  //       'Content-Disposition': 'attachment',
+  //     })
+  //     req.pipe(wait.res)
+  //     return new Promise((resolve, reject) => {
+  //       req.on('error', reject)
+  //       req.on('end', resolve)
+  //     })
+  //   }
   }
 
   const map = new Map() // Map<provider_id => provider>
   return { // 这个对象用来管理“提供端”
-    set_provider(id, children) { // 管理端上报自己的目录结构，开始 serving
-      console.log('setting up provider', { id })
+    set_provider(id, root_dir_name) { // 管理端上报自己的目录结构，开始 serving
+      console.log('setting up provider', { id, root_dir_name })
       if (!map.has(id)) // 如果 map 里没有，则是一个新的管理端；如果有，则是管理端重选了 serving 目录
         map.set(id, new Provider())
-      map.get(id).set_children(children)
+      map.get(id).set_root_name(root_dir_name)
     },
     get_provider(id) {
       return map.get(id)
@@ -344,7 +428,12 @@ function make_request_context(request, response, lang_key, query) {
       request.on('end', () => resolve(JSON.parse(result.join(''))))
       request.on('error', reject)
     }),
-    write: data => response.end(JSON.stringify(data))
+    write: data => {
+      response.writeHead(200, {
+        'Content-Type': 'application/json'
+      })
+      response.end(JSON.stringify(data))
+    }
   }
   return {
     req: request,
@@ -364,8 +453,8 @@ function make_request_context(request, response, lang_key, query) {
             <style>
               body {
                 max-width: 1200px;
-                margin: 2em auto;
-                padding: 0 3em;
+                margin: 2rem auto;
+                padding: 0 3rem;
                 position: relative;
               }
               .options_container { /* 右上角那些链接、按钮 */
@@ -377,7 +466,7 @@ function make_request_context(request, response, lang_key, query) {
                 align-items: center;
               }
               .options_container > * {
-                margin: 0 1em;
+                margin: 0 1rem;
               }
             </style>
             <script>
