@@ -64,18 +64,21 @@ function make_router() {
       summary {
         cursor: pointer;
       }
-      summary, .file_name {
+      summary, .file_container {
         padding: .3em .5em;
       }
-      a.file_name {
-        display: block;
-        text-decoration: none;
-      }
-      .file_name::before {
+      .file_container::before {
         content: '#';
         font-weight: bold;
         margin-right: .66em;
         color: #888;
+      }
+      .file_container span {
+        margin-left: 1.6em;
+        font-size: small;
+      }
+      .file_container:not(:hover) span {
+        color: #bbb;
       }
       .details_body {
         padding: 0 1.666em;
@@ -97,78 +100,33 @@ function make_router() {
             <p id="serve_tip"></p>
             ${File_tree()}
             <script>
-              let provider_id = localStorage.getItem('provider_id')
-              if (provider_id === null) {
-                provider_id = '${new Date().getTime()}-${++provider_id}'
-                localStorage.setItem('provider_id', provider_id)
-              }
+              const provider_id = '${new Date().getTime()}-${++provider_id}'
+              let root_dir_handle = null
               let heart_beat_id = null
 
               async function serve() {
-                const Proto = self => Object.assign(Object.create({
-                  toJSON() {
-                    return {
-                      name: this.name,
-                      children: this.children,
-                    }
-                  }
-                }), self)
-                const Dir = (handle, name) => Proto({
-                  handle,
-                  name,
-                  children: []
-                })
-                const File = (handle, name) => Proto({ handle, name })
-
-                // 1. 构建文件目录树
-                const root = await async function build_tree(dir) {
-                  for await (const [name, handle] of dir.handle.entries())
-                    dir.children.push(
-                      await {
-                        file: () => File(handle, name),
-                        directory: () => build_tree(Dir(handle, name))
-                      }[handle.kind]()
-                    )
-                  return dir
-                }(Dir(await window.showDirectoryPicker()))
-
-                // 2. 填充提示信息
+                // 1. 让用户选 serve 的文件夹
+                root_dir_handle = await window.showDirectoryPicker()
+                // 2. 展示被 serve 的目录
+                document.querySelector('main').replaceChildren(make_tree_details(root_dir_handle))
+                // 3. 填充提示信息
                 document.getElementById('serve_tip').innerHTML = \`
                   ${lang('已开启，客户端访问', 'serving on')[lang_key]}
                   <a href="../downloader?id=\${provider_id}" target="_blank">
                     ${lang('这个链接', 'this link')[lang_key]}
                   </a>
                 \`
-
-                // 3. 展示文件目录树
-                const main = document.querySelector('main')
-                const build_details = (header, body) =>
-                  '<details><summary>' + header + '</summary><div class="details_body">' + body + '</div></details>'
-                main.innerHTML = function build_html(dir) {
-                  return build_details(
-                    '/' + dir.name,
-                    dir.children.map(item => item.children
-                      ? build_html(item)
-                      : '<div class="file_name">' + item.name + '</div>'
-                    ).join('')
-                  )
-                }({
-                  name: '',
-                  children: root.children
-                })
-                
-                // 4. 上报服务器
+                // 4. 上报服务器（桥）：我（provider_id）已经在 serve 啦，被 serve 的文件夹是...
                 await http.POST('/provider', {
                   provider_id,
-                  children: root.children,
+                  root_dir_name: root_dir_handle.name,
                 })
-
-                // 5. heat beat
-                clearTimeout(heart_beat_id)
+                // 5. 开始心跳
+                clearTimeout(heart_beat_id) // 关掉上次心跳
                 let fail = 0 // 心跳连续失败计数
                 ;(async function heart_beat() {
                   try {
-                    var { path, unknown_provider } = await http.GET('/to_download?id=' + provider_id)
+                    var { path, unknown_provider } = await http.GET('/heart_beat?id=' + provider_id)
                     fail = 0 // 连续失败归零
                   } catch(err) {
                     console.error('heart beat failed:', err)
@@ -204,6 +162,31 @@ function make_router() {
                   alert(msg)
                   location.reload()
                 }
+              }
+
+              function make_tree_details(dir_handle) { // 文件夹节点
+                const children_container = O.div({ className: 'details_body' })
+                const container = O.details(null,
+                  O.summary(null, dir_handle.name),
+                  children_container
+                )
+                container.addEventListener('toggle', function on_details_toggle() {
+                  if(container.open)
+                    open_dir(dir_handle, children_container)
+                })
+                return container
+              }
+              async function open_dir(dir_handle, dir_children_container) {
+                const children = []
+                for await (const handle of dir_handle.values())
+                  children.push(handle.kind == 'file'
+                    ? O.div({ className: 'file_container' },  // 文件节点
+                        O.label(null, handle.name),
+                        O.span(null, (await handle.getFile()).size)
+                      )
+                    : make_tree_details(handle)
+                  )
+                dir_children_container.append(...children)
               }
             </script>
           `
@@ -378,17 +361,6 @@ function make_request_context(request, response, lang_key, query) {
           <head>
             <title>${title}</title>
             <meta charset='utf8'>
-            <script>
-              window.http = new Proxy({}, { // 封装一个 http 客户端（类似 axios）
-                get(_, method) {
-                  return (path, data, timeout = 3000) => fetch(path, {
-                    method,
-                    signal: AbortSignal.timeout(timeout), // 超时
-                    body: data && JSON.stringify(data)
-                  }).then(res => res.json())
-                }
-              })
-            </script>
             <style>
               body {
                 max-width: 1200px;
@@ -408,6 +380,30 @@ function make_request_context(request, response, lang_key, query) {
                 margin: 0 1em;
               }
             </style>
+            <script>
+              window.http = new Proxy({}, { // 封装一个 http 客户端（类似 axios）
+                get(_, method) {
+                  return (path, data, timeout = 3000) => fetch(path, {
+                    method,
+                    signal: AbortSignal.timeout(timeout), // 超时
+                    body: data && JSON.stringify(data)
+                  }).then(res => res.json())
+                }
+              })
+            </script>
+            <script>
+              window.O = new Proxy({}, { // 封装 document.createElement
+                get(_, tagname) {
+                  return (props, ...children) => {
+                    const el = document.createElement(tagname)
+                    for(const k in props)
+                      el[k] = props[k]
+                    el.append(...children)
+                    return el
+                  }
+                }
+              })
+            </script>
           </head>
           <body>
             <h1>${title}</h1>
