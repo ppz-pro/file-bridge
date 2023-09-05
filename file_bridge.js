@@ -303,23 +303,25 @@ function make_router() {
                 })
               )
 
-              async function open_dir({ name, path }, children_container) {
-                const encoded_path = encodeURIComponent(path)
-                const res = await http.GET(\`/ls?id=\${provider_id}&path=\${encoded_path}\`)
-                if (res.error) return alert(res.error)
-
-                const children = []
-                for (const { name, size } of res.data)
-                  children.push(size !== undefined
-                    ? O.div({ className: 'file_container' },
-                        O.a({
-                          href: './download?id=\${provider_id}&path=\${encoded_path}'
-                        }, name),
-                        O.span(null, size),
-                      )
-                    : make_tree_details({ name, path: path + '/' + name })
+              async function open_dir({ path }, children_container) {
+                const res = await http.GET(\`/ls?id=\${provider_id}&path=\${encodeURIComponent(path)}\`)
+                if (res.error) {
+                  alert(res.error)
+                  location.reload()
+                  return
+                }
+                children_container.replaceChildren(
+                  ...res.data.map( ({ name, size }) =>
+                    size === undefined // size 为 undefined 时，是文件夹
+                      ? make_tree_details({ name, path: path + '/' + name })
+                      : O.div({ className: 'file_container' },
+                          O.a({
+                            href: \`./download?id=\${provider_id}&path=\${encodeURIComponent(path + '/' + name)}\`
+                          }, name),
+                          O.span(null, size),
+                        )
                   )
-                children_container.replaceChildren(...children)
+                )
               }
             </script>
           `
