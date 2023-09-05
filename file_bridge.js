@@ -14,17 +14,9 @@ createServer(
       // console.log('receive request', request.url)
       const [path_target, ...querystring] = request.url.split('?') // 第一个问号前是 path，之后是 query
       let { lang, ...query } = Querystring.parse(querystring.join('?'))
-      switch(lang) {
-        case 'cn':
-        case 'en':
-          break
-        case undefined: // 默认中文
-          lang = 'cn'
-          break
-        default: // 遇到不支持的语言就使用英文
-          lang = 'en'
-          break
-      }
+      lang ||= 'cn' // 默认中文
+      if (!['cn', 'en'].includes(lang))  // 遇到不支持的语言就使用英文
+        lang = 'en'
 
       const handler = router.find(({ path, method = 'GET' }) => path == path_target && method == request.method)
       if(handler)
@@ -159,17 +151,17 @@ function make_router() {
                     return reload('${lang('未知的提供端 id', 'Unknown Provider')[lang_key]}')
                   if (task) {
                     heart_beat() // 一次只传来一个任务，收到任务立刻跳下一次（否则一秒只能处理一个任务）
+                    const query_str = \`?provider_id=\${provider_id}&task_id=\${task.id}\`
                     if (task.ls) { // 获取目录
-                      console.log('posting ls', task.ls)
-                      const url = \`/ls?provider_id=\${provider_id}&task_id=\${task.id}\`
+                      const url = '/ls' + query_str
                       try {
+                        console.log('posting ls', task.ls)
                         await async function post_ls(path_arr, dir_handle) {
                           const target_name = path_arr.shift() // 路径一层一层剥开
-                          console.log({ target_name })
                           if (target_name)
                             await post_ls(path_arr, await dir_handle.getDirectoryHandle(target_name))
                           else
-                            http.POST(url, {
+                            http.POST(url, { // 没有 await
                               data: await async function() {
                                 const list = []
                                 for await (const handle of dir_handle.values())
@@ -193,21 +185,22 @@ function make_router() {
                         })
                       }
                     } else if (task.download) { // 下载文件
-                      console.log('uploading ', task.download)
-                      ;(async function upload(path_arr, dir_handle) { // 递归找到目标文件并上传
-                        // const target_name = path_arr.shift() // 路径一层一层剥开
-                        // const target = siblings.find(sib => sib.name == target_name)
-                        // if (path_arr.length) // 如果还没剥完，就进入下一层递归
-                        //   return upload(path_arr, target.children)
-                        // else // 剥完了，就开始上传（递归结束）
-                        //   fetch(
-                        //     \`/download?id=\${provider_id}&path=\` + encodeURIComponent(path),
-                        //     {
-                        //       method: 'POST',
-                        //       body: await target.handle.getFile()
-                        //     }
-                        //   )
-                      })(task.download.split('/'), root_dir_handle)
+                      const url = '/download' + query_str
+                      try {
+                        console.log('posting download ', task.download)
+                        await async function upload(path_arr, dir_handle) { // 递归找到目标文件并上传
+                          const target_name = path_arr.shift() // 路径一层一层剥开
+                          if (path_arr.length) // 如果还没剥完，就进入下一层递归
+                            return upload(path_arr, await dir_handle.getDirectoryHandle(target_name))
+                          else // 剥完了，就开始上传（递归结束）
+                            fetch(url, { // 没有 await
+                              method: 'POST',
+                              body: await (await dir_handle.getFileHandle(target_name)).getFile()
+                            })
+                        }(task.download.split('/').slice(2), root_dir_handle)
+                      } catch(err) {
+                        console.error('error on posting download: ', err)
+                      }
                     } else {
                       console.error({ task })
                       throw Error('unknown task')
@@ -252,7 +245,7 @@ function make_router() {
       handle({ query, json }) {
         const provider = provider_manager.get_provider(query.id)
         if (provider) {
-          let task = provider.wait_ls.check() || provider.wait_download.check()
+          let task = provider.wait.check()
           if (task) {
             const { id, params, type } = task
             json.write({ task: { id, [type]: params } })
@@ -268,7 +261,8 @@ function make_router() {
       method: 'POST',
       async handle({ req, query, success }) {
         console.log('posting download', query)
-        await provider_manager.get_provider(query.id).send(query.path, req)
+        await provider_manager.get_provider(query.provider_id).wait
+          .get_respond_wrapper(parseInt(query.task_id))(req)
         success() // 这个响应是发给提供端的：“你已经上传成功了”
       }
     },
@@ -277,8 +271,8 @@ function make_router() {
       path: '/ls',
       async handle({ query, json, success }) {
         console.log('receiving ls', query)
-        const async_respond = provider_manager.get_provider(query.provider_id).wait_ls.get_respond_wrapper(parseInt(query.task_id))
-        await async_respond(await json.read())
+        await provider_manager.get_provider(query.provider_id).wait
+          .get_respond_wrapper(parseInt(query.task_id))(await json.read())
         success() // 这个响应是发给提供端的：“你已经上传成功了”
       }
     },
@@ -331,14 +325,26 @@ function make_router() {
     { // 下载端接口：获取提供端目录
       path: '/ls',
       handle({ query, json }) {
-        provider_manager.get_provider(query.id).wait_ls.push(query.path, list => json.write(list))
+        provider_manager.get_provider(query.id).wait.push('ls', query.path, list => json.write(list))
         console.log('waiting ls : ', query)
       }
     },
     { // 下载端接口：下载文件
       path: '/download',
       handle({ res, query }) {
-        provider_manager.get_provider(query.id).push(res, query.path)
+        provider_manager.get_provider(query.id).wait.push('download', query.path,
+          function sending_file(provider_req) {
+            res.writeHead(200, {
+              'Content-Type': 'application/octet-stream',
+              'Content-Disposition': 'attachment; filename=' + encodeURIComponent(query.path.split('/').at(-1)),
+            })
+            provider_req.pipe(res)
+            return new Promise((resolve, reject) => {
+              provider_req.on('error', reject)
+              provider_req.on('end', resolve)
+            })
+          }
+        )
       }
     },
   ]
@@ -348,21 +354,14 @@ function make_provider_manager() {
   let wait_id = 0
   /** 某种请求的等待 */
   class Wait {
-    #name = null
     #map = new Map()
     #to_check = [] // 先进先出
-    constructor(name) {
-      this.#name = name
-    }
-    push(params, respond) { // params: 请求的参数, respond: 响应请求
+    push(type, params, respond) { // type: 请求类型（现在有 ls 和 download 两种）, params: 请求的参数, respond: 响应请求
       const id = ++wait_id
-      const item = {
-        id, params, respond,
-        type: this.#name,
-      }
+      const item = { type, id, params, respond }
       this.#map.set(id, item)
       this.#to_check.push(item) // 推进去（最后一个）
-      console.log('new waiting', this.#name, id, params)
+      console.log('new waiting', type, id, params)
     }
     check() {
       const target = this.#to_check.shift() // 取出来（第一个）
@@ -372,39 +371,18 @@ function make_provider_manager() {
     }
     get_respond_wrapper(id) {
       const target = this.#map.get(id)
-      console.log('get respond wrapper', id)
+      console.log('got respond wrapper', id)
       return async (...args) => {
         try {
           console.log('responding', id)
           await target.respond(...args)
           console.log('responded', id)
         } catch (err) {
-          console.error(`error on respond Wait(${this.#name}, ${id}, ${target.params}): `, err)
+          console.error(`error on responding Wait(${target.type}, ${id}, ${target.params}): `, err)
         }
         this.#map.delete(id)
       }
     }
-  }
-  class Provider {
-    wait_ls = new Wait('ls') // 等待下载端的 ls 请求
-    wait_download = new Wait('download') // 等待下载端的 download 请求
-    set_root_name(root_name) { // 提供端目录结构
-      this.root_name = root_name
-    }
-  //   send(path, req) { // 传输文件
-  //     const index = this.#wait.findIndex(item => item.path == path && item.status == 'checked')
-  //     const wait = this.#wait[index] // 获取
-  //     this.#wait.splice(index, 1) // 删除
-  //     wait.res.writeHead(200, {
-  //       'Content-Type': 'application/octet-stream',
-  //       'Content-Disposition': 'attachment',
-  //     })
-  //     req.pipe(wait.res)
-  //     return new Promise((resolve, reject) => {
-  //       req.on('error', reject)
-  //       req.on('end', resolve)
-  //     })
-  //   }
   }
 
   const map = new Map() // Map<provider_id => provider>
@@ -412,8 +390,10 @@ function make_provider_manager() {
     set_provider(id, root_dir_name) { // 管理端上报自己的目录结构，开始 serving
       console.log('setting up provider', { id, root_dir_name })
       if (!map.has(id)) // 如果 map 里没有，则是一个新的管理端；如果有，则是管理端重选了 serving 目录
-        map.set(id, new Provider())
-      map.get(id).set_root_name(root_dir_name)
+        map.set(id, { // 这个就是 provider
+          wait: new Wait()
+        })
+      map.get(id).root_name = root_dir_name
     },
     get_provider(id) {
       return map.get(id)
