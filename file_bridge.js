@@ -97,9 +97,12 @@ function make_router() {
             <p id="serve_tip"></p>
             ${File_tree()}
             <script>
-              let root = null
+              let provider_id = localStorage.getItem('provider_id')
+              if (provider_id === null) {
+                provider_id = '${new Date().getTime()}-${++provider_id}'
+                localStorage.setItem('provider_id', provider_id)
+              }
               let heart_beat_id = null
-              let provider_id = '${new Date().getTime()}-${++provider_id}'
 
               async function serve() {
                 const Proto = self => Object.assign(Object.create({
@@ -118,7 +121,7 @@ function make_router() {
                 const File = (handle, name) => Proto({ handle, name })
 
                 // 1. 构建文件目录树
-                root = await async function build_tree(dir) {
+                const root = await async function build_tree(dir) {
                   for await (const [name, handle] of dir.handle.entries())
                     dir.children.push(
                       await {
