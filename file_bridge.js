@@ -5,7 +5,6 @@ const Querystring = require('querystring')
 const PORT = 6666
 const router = make_router()
 const provider_manager = make_provider_manager()
-
 let provider_id = 0
 
 createServer(
@@ -29,10 +28,8 @@ createServer(
       console.error('error occured on handling request:', err)
     }
   }
-).listen(PORT,
-  function on_server_started() {
-    console.log('file bridge started on ', PORT)
-  }
+).listen(PORT, () =>
+  console.log('file bridge started on ', PORT)
 )
 
 function make_router() {
@@ -98,7 +95,7 @@ function make_router() {
     </style>
   `
 
-  return [
+  return [ // 路由列表
     { // 页面：提供端
       path: '/',
       handle({ lang_key, respond_html }) {
@@ -138,12 +135,12 @@ function make_router() {
                 let fail = 0 // 心跳连续失败计数
                 ;(async function heart_beat() {
                   try {
-                    var { unknown_provider, task } = await http.GET('/heart_beat?id=' + provider_id)
+                    var { unknown_provider, task } = await http.GET('/heart_beat?id=' + provider_id) // 心跳，顺便看看有没有新任务（上传数据、文件）
                     fail = 0 // 连续失败归零
                   } catch(err) {
                     console.error('heart beat failed:', err)
                     if (++fail < 3) // 三次以内，继续心跳
-                      return heart_beat_id = setTimeout(heart_beat, 1000)
+                      return heart_beat()
                     else // 三次以上，reload
                       return reload('${lang('网络连接中断', 'Disconnected')[lang_key]}')
                   }
@@ -200,6 +197,7 @@ function make_router() {
                         }(task.download.split('/').slice(2), root_dir_handle)
                       } catch(err) {
                         console.error('error on posting download: ', err)
+                        // todo: 处理下载失败
                       }
                     } else {
                       console.error({ task })
@@ -231,7 +229,7 @@ function make_router() {
         )
       }
     },
-    { // 提供端接口：上报用户指定的目录结构
+    { // 提供端接口：上报提供端状态“已就绪”
       method: 'POST',
       path: '/provider',
       async handle({ json, success }) {
@@ -240,7 +238,7 @@ function make_router() {
         success()
       }
     },
-    { // 提供端接口：心跳（保持与桥的连接）、获取“待下载文件”路径
+    { // 提供端接口：心跳（保持与桥的连接）、获取请求任务
       path: '/heart_beat',
       handle({ query, json }) {
         const provider = provider_manager.get_provider(query.id)
@@ -260,7 +258,6 @@ function make_router() {
       path: '/download',
       method: 'POST',
       async handle({ req, query, success }) {
-        console.log('posting download', query)
         await provider_manager.get_provider(query.provider_id).wait
           .get_respond_wrapper(parseInt(query.task_id))(req)
         success() // 这个响应是发给提供端的：“你已经上传成功了”
@@ -270,7 +267,6 @@ function make_router() {
       method: 'POST',
       path: '/ls',
       async handle({ query, json, success }) {
-        console.log('receiving ls', query)
         await provider_manager.get_provider(query.provider_id).wait
           .get_respond_wrapper(parseInt(query.task_id))(await json.read())
         success() // 这个响应是发给提供端的：“你已经上传成功了”
@@ -286,8 +282,7 @@ function make_router() {
         respond_html(
           lang_key,
           lang_common.title_(lang('下载端', '- Downloader'), lang_key),
-          `
-            ${File_tree(lang_key)}
+          File_tree(lang_key) + `
             <script>
               const provider_id = '${query.id}'
               document.querySelector('main').replaceChildren(
@@ -296,7 +291,6 @@ function make_router() {
                   path: '/${provider.root_name}',
                 })
               )
-
               async function open_dir({ path }, children_container) {
                 const res = await http.GET(\`/ls?id=\${provider_id}&path=\${encodeURIComponent(path)}\`)
                 if (res.error) {
@@ -326,7 +320,6 @@ function make_router() {
       path: '/ls',
       handle({ query, json }) {
         provider_manager.get_provider(query.id).wait.push('ls', query.path, list => json.write(list))
-        console.log('waiting ls : ', query)
       }
     },
     { // 下载端接口：下载文件
@@ -346,14 +339,15 @@ function make_router() {
           }
         )
       }
-    },
+    }
   ]
 }
 
 function make_provider_manager() {
   let wait_id = 0
-  /** 某种请求的等待 */
-  class Wait {
+  const map = new Map() // Map<provider_id => provider>
+
+  class Wait { // 请求的等待
     #map = new Map()
     #to_check = [] // 先进先出
     push(type, params, respond) { // type: 请求类型（现在有 ls 和 download 两种）, params: 请求的参数, respond: 响应请求
@@ -371,10 +365,9 @@ function make_provider_manager() {
     }
     get_respond_wrapper(id) {
       const target = this.#map.get(id)
-      console.log('got respond wrapper', id)
       return async (...args) => {
         try {
-          console.log('responding', id)
+          console.log('responding wait', id, target.type, target.params)
           await target.respond(...args)
           console.log('responded', id)
         } catch (err) {
@@ -384,9 +377,8 @@ function make_provider_manager() {
       }
     }
   }
-
-  const map = new Map() // Map<provider_id => provider>
   return { // 这个对象用来管理“提供端”
+    get_provider: id => map.get(id),
     set_provider(id, root_dir_name) { // 管理端上报自己的目录结构，开始 serving
       console.log('setting up provider', { id, root_dir_name })
       if (!map.has(id)) // 如果 map 里没有，则是一个新的管理端；如果有，则是管理端重选了 serving 目录
@@ -394,16 +386,12 @@ function make_provider_manager() {
           wait: new Wait()
         })
       map.get(id).root_name = root_dir_name
-    },
-    get_provider(id) {
-      return map.get(id)
     }
   }
 }
 
 function make_request_context(request, response, lang_key, query) {
-  // 读写 json 数据
-  const json = {
+  const json = { // 读写 json 数据
     read: () => new Promise((resolve, reject) => {
       const result = []
       request.on('data', chunk => result.push(chunk))
@@ -453,25 +441,22 @@ function make_request_context(request, response, lang_key, query) {
             </style>
             <script>
               window.http = new Proxy({}, { // 封装一个 http 客户端（类似 axios）
-                get(_, method) {
-                  return (path, data, timeout = 3000) => fetch(path, {
+                get: (_, method) => (path, data, timeout = 3000) =>
+                  fetch(path, {
                     method,
                     signal: AbortSignal.timeout(timeout), // 超时
                     body: data && JSON.stringify(data)
                   }).then(res => res.json())
-                }
               })
             </script>
             <script>
               window.O = new Proxy({}, { // 封装 document.createElement
-                get(_, tagname) {
-                  return (props, ...children) => {
-                    const el = document.createElement(tagname)
-                    for(const k in props)
-                      el[k] = props[k]
-                    el.append(...children)
-                    return el
-                  }
+                get: (_, tagname) => (props, ...children) => {
+                  const el = document.createElement(tagname)
+                  for(const k in props)
+                    el[k] = props[k]
+                  el.append(...children)
+                  return el
                 }
               })
             </script>
@@ -488,10 +473,8 @@ function make_request_context(request, response, lang_key, query) {
                 const container = document.querySelector('.option_pair.multi_lang')
                 const search = new URLSearchParams(location.search)
                 const lang = search.get('lang') || 'cn'
-                const cn_btn = document.createElement('a')
-                cn_btn.innerHTML = '中文'
-                const en_btn = document.createElement('a')
-                en_btn.innerHTML = 'English'
+                const cn_btn = O.a(null, '中文')
+                const en_btn = O.a(null, 'English')
                 const is_cn = lang == 'cn'
                 search.set('lang', is_cn ? 'en' : 'cn')
                 ;(is_cn ? en_btn : cn_btn).href = \`javascript: location.href='\${location.pathname}?\${search}'\`
