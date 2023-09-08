@@ -465,6 +465,7 @@ function make_request_context(request, response, lang_key, query) {
             <h1>${title}</h1>
             ${body}
             <div class="options_container">
+              <a href="https://ppz-pro.github.io/.github/" target="_blank">微信群</a>
               <a href="https://github.com/ppz-pro/file-bridge" target="_blank">Github</a>
               <div class="option_pair multi_lang"></div>
             </div>
