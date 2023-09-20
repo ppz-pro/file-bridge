@@ -1,3 +1,3 @@
-module github.com/ppz-pro/file-bridge/tree/go
+module _
 
 go 1.21.0

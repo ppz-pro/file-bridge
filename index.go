@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/ppz-pro/file-bridge/tree/go/src/handler"
-	"github.com/ppz-pro/file-bridge/tree/go/src/ppz"
+	"_/handler"
+	"_/ppz"
 )
 
 func main() {
