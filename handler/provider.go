@@ -1,9 +1,11 @@
 package handler
 
 import (
-	"net/http"
+	"_/ppz"
+	"fmt"
 )
 
-func Page_provider(res http.ResponseWriter, req *http.Request) {
-	render(res, webpage{"cn", "Provider", "hello"})
+func Page_provider(ctx ppz.Request_context) {
+	fmt.Println(ctx.Lang_key)
+	render(ctx.Res, webpage{"cn", "Provider", "hello"})
 }

@@ -5,32 +5,32 @@ import (
 	"net/http"
 )
 
-type _Handle func(http.ResponseWriter, *http.Request) // handler
-type _Method_handle_map map[string]_Handle            // request method => handler
-type _Path_mhm_map map[string]_Method_handle_map      // url path => request method => handler
+type _handle func(Request_context)
+type _method_handle_map map[string]_handle       // request method => handler
+type _path_mhm_map map[string]_method_handle_map // url path => request method => handler
 
-type _Server struct {
-	router _Path_mhm_map
+type _server struct {
+	router _path_mhm_map
 }
 
-func Make_server() _Server {
-	return _Server{
-		_Path_mhm_map{},
+func Make_server() _server {
+	return _server{
+		_path_mhm_map{},
 	}
 }
 
-func (server _Server) Make_router(path string) _Method_handle_map {
-	mhm := map[string]_Handle{}
+func (server _server) Make_router(path string) _method_handle_map {
+	mhm := map[string]_handle{}
 	server.router[path] = mhm
 	return mhm
 }
 
-func (server _Server) Start(port int) {
+func (server _server) Start(port int) {
 	for path, method_map := range server.router {
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
 			handle, ok := method_map[req.Method]
 			if ok {
-				handle(res, req)
+				handle(make_request_context(res, req))
 			} else {
 				fmt.Println("404")
 			}
