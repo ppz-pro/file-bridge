@@ -1,4 +1,4 @@
-package ppz
+package context
 
 import (
 	"net/http"
@@ -8,14 +8,16 @@ import (
 const cn = "cn"
 const en = "en"
 
-type Request_context struct {
+type Request struct {
+	App App_context
+
 	Res http.ResponseWriter
 	Req *http.Request
 
 	Lang_key string
 }
 
-func (ctx Request_context) Lang(cn_str string, en_str string) string {
+func (ctx Request) Lang(cn_str string, en_str string) string {
 	switch ctx.Lang_key {
 	case cn:
 		return cn_str
@@ -39,8 +41,8 @@ func _parse_lang(query url.Values) string { // coc: 下划线开头的对象仅�
 	}
 }
 
-func make_request_context(res http.ResponseWriter, req *http.Request) Request_context {
+func New_request(res http.ResponseWriter, req *http.Request, app App_context) Request {
 	query := req.URL.Query()
 	lang := _parse_lang(query)
-	return Request_context{res, req, lang}
+	return Request{app, res, req, lang}
 }
