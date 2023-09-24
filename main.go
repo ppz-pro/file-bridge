@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-const port = 6666
+const port = 7777
 
 func main() {
 	fmt.Println("\n\n\nfile bridge (golang) starting")
@@ -25,7 +25,7 @@ func main() {
 		})
 	}
 	fmt.Printf("listening on %d\n\n", port)
-	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
 		fmt.Println("stopped on error: ", err)
 	}
