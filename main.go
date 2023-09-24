@@ -10,11 +10,12 @@ import (
 const port = 6666
 
 func main() {
-	fmt.Println("\n\nfile bridge (golang) starting")
+	fmt.Println("\n\n\nfile bridge (golang) starting")
 	app_context := context.New_app()
 	for path, handler := range handles.All_handle() {
 		fmt.Println("route:", path, handler)
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
+			fmt.Println("received request", req.Method, path)
 			handle, ok := handler[req.Method]
 			if ok {
 				handle(context.New_request(res, req, app_context))
@@ -24,7 +25,7 @@ func main() {
 		})
 	}
 	fmt.Printf("listening on %d\n\n", port)
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
 	if err != nil {
 		fmt.Println("stopped on error: ", err)
 	}
