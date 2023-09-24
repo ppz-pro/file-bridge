@@ -11,13 +11,13 @@ type Webpage struct {
 	Body  string
 }
 
-type App_context struct {
+type App struct {
 	Render func(res http.ResponseWriter, data Webpage) error
 }
 
-func New_app() App_context {
+func New_app() App {
 	tmpl := template.Must(template.ParseFiles("context/layout.html"))
-	return App_context{
+	return App{
 		func(res http.ResponseWriter, data Webpage) error {
 			return tmpl.Execute(res, data)
 		},
