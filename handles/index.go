@@ -2,7 +2,7 @@ package handles
 
 import (
 	"_/context"
-	"_/utils"
+	"_/utils/map2"
 	"fmt"
 	"net/http"
 )
@@ -35,7 +35,7 @@ func Collect() {
 
 	app_context := context.New_app()
 
-	utils.Map_for_each(handles, func(path string, restful _restful) {
+	map2.Arm(handles).Each(func(restful _restful, path string) {
 		fmt.Println("route:", path, restful)
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
 			fmt.Printf("[received request: %s %s][matched: %s]\n", req.Method, req.URL.Path, path)
