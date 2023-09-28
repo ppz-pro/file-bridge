@@ -7,8 +7,8 @@ import (
 )
 
 type Animal struct {
-	Name string
-	Year int
+	Name string `json:"name"`
+	Year int    `json:"year"`
 }
 
 func test_json(ctx context.Request) {
