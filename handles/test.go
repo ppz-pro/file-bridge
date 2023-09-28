@@ -2,8 +2,6 @@ package handles
 
 import (
 	"_/context"
-	"_/utils"
-	"io"
 )
 
 type Animal struct {
@@ -12,19 +10,9 @@ type Animal struct {
 }
 
 func test_json(ctx context.Request) {
-	posted, err := io.ReadAll(ctx.Req.Body)
-	if err != nil {
-		panic(err)
+	ani, ok := read_json[Animal](ctx)
+	if !ok {
+		panic("err on parse json")
 	}
-
-	ani, err := utils.Json_parse[Animal](string(posted))
-	if err != nil {
-		panic(err)
-	}
-
-	ani_str, err := utils.Json_stringify(ani)
-	if err != nil {
-		panic(err)
-	}
-	io.WriteString(ctx.Res, ani_str)
+	write_json(ctx, ani)
 }
