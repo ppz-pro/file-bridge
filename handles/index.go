@@ -2,20 +2,19 @@ package handles
 
 import (
 	"_/context"
-	"_/utils/map2"
 	"fmt"
 	"net/http"
 )
 
 type _handle func(context.Request)
-type _restful map[string]_handle      // request.method => handle
-type _all_handles map[string]_restful // request.path => restful
+type _handles map[string]_handle      // request.method => handle
+type _all_handles map[string]_handles // request.path => _handles
 
 const GET = http.MethodGet
 const POST = http.MethodPost
 
 func Collect() {
-	handles := _all_handles{
+	all_handles := _all_handles{
 		"/": {
 			GET: func(ctx context.Request) {
 				if ctx.Req.URL.Path == "/" {
@@ -35,17 +34,20 @@ func Collect() {
 
 	app_context := context.New_app()
 
-	map2.Arm(handles).Each(func(restful _restful, path string) {
-		fmt.Println("route:", path, restful)
+	add_handle := func(path string, handles _handles) {
+		fmt.Println("route:", path, handles)
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
 			fmt.Printf("[received request: %s %s][matched: %s]\n", req.Method, req.URL.Path, path)
-			handle, ok := restful[req.Method]
+			handle, ok := handles[req.Method]
 			if !ok {
 				handle = handle_404
 			}
 			handle(context.New_request(res, req, app_context))
 		})
-	})
+	}
+	for path, handles := range all_handles {
+		add_handle(path, handles)
+	}
 }
 
 func handle_404(ctx context.Request) {
