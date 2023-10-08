@@ -5,14 +5,14 @@ import (
 	"text/template"
 )
 
-type Webpage struct {
-	Lang  string
-	Title string
-	Body  string
+type webpage struct {
+	lang  string
+	title string
+	body  string
 }
 
-type App struct {
-	Render func(res http.ResponseWriter, data Webpage) error
+type app struct {
+	render func(res http.ResponseWriter, data webpage) error
 }
 
 func New_app() App {

@@ -1,11 +1,12 @@
-package context
+package handles
 
 import (
+	"_/context"
 	"_/utils"
 	"io"
 )
 
-func Read_json[Result any](ctx Request) (Result, bool) {
+func read_json[Result any](ctx context.Request) (Result, bool) {
 	var result Result
 	body_str, err := io.ReadAll(ctx.Req.Body)
 	if err != nil {
@@ -20,12 +21,21 @@ func Read_json[Result any](ctx Request) (Result, bool) {
 	return result, true
 }
 
-func Write_json(ctx Request, result any) bool {
+const (
+	WRITE_JSON_SUCCESS = iota
+	WRITE_JSON_ERR_STRINGIFY
+	WRITE_JSON_ERR_WRITE
+)
+func write_json(ctx context.Request, result any) int {
 	res_str, err := utils.Json_stringify(result)
 	if err != nil {
-		return false
+		return WRITE_JSON_ERR_STRINGIFY
 	}
 
 	_, err = io.WriteString(ctx.Res, res_str)
-	return err == nil
+	if err == nil {
+		return WRITE_JSON_ERR_WRITE
+	}
+	
+	return WRITE_JSON_SUCCESS
 }

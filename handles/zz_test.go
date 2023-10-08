@@ -10,10 +10,10 @@ type Animal struct {
 }
 
 func test_json(ctx context.Request) int {
-	ani, ok := context.Read_json[Animal](ctx)
+	ani, ok := Read_json[Animal](ctx)
 	if !ok {
 		return ERR_BAD_REQEUST
 	}
-	context.Write_json(ctx, ani)
+	Write_json(ctx, ani)
 	return END
 }
