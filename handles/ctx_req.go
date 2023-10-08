@@ -1,4 +1,4 @@
-package context
+package handles
 
 import (
 	"net/http"
@@ -8,23 +8,23 @@ import (
 const cn = "cn"
 const en = "en"
 
-type Request struct {
-	App App
+type request struct {
+	app app
 
-	Res http.ResponseWriter
-	Req *http.Request
+	res http.ResponseWriter
+	req *http.Request
 
-	Lang_key string
+	lang_key string
 }
 
-func (ctx Request) Lang(cn_str string, en_str string) string {
-	switch ctx.Lang_key {
+func (ctx request) lang(cn_str string, en_str string) string {
+	switch ctx.lang_key {
 	case cn:
 		return cn_str
 	case en:
 		return en_str
 	default:
-		panic("unknown lang key: " + ctx.Lang_key)
+		panic("unknown lang key: " + ctx.lang_key)
 	}
 }
 
@@ -41,8 +41,8 @@ func _parse_lang(query url.Values) string { // coc: 下划线开头的对象仅�
 	}
 }
 
-func New_request(res http.ResponseWriter, req *http.Request, app App) Request {
+func new_request(res http.ResponseWriter, req *http.Request, app app) request {
 	query := req.URL.Query()
 	lang := _parse_lang(query)
-	return Request{app, res, req, lang}
+	return request{app, res, req, lang}
 }

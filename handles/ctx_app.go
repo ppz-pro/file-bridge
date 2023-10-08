@@ -1,4 +1,4 @@
-package context
+package handles
 
 import (
 	"net/http"
@@ -15,10 +15,10 @@ type app struct {
 	render func(res http.ResponseWriter, data webpage) error
 }
 
-func New_app() App {
-	tmpl := template.Must(template.ParseFiles("context/layout.html"))
-	return App{
-		func(res http.ResponseWriter, data Webpage) error {
+func new_app() app {
+	tmpl := template.Must(template.ParseFiles("handles/template/layout.html"))
+	return app{
+		func(res http.ResponseWriter, data webpage) error {
 			return tmpl.Execute(res, data)
 		},
 	}

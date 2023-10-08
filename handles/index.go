@@ -1,12 +1,11 @@
 package handles
 
 import (
-	"_/context"
 	"fmt"
 	"net/http"
 )
 
-type _handle func(context.Request) int
+type _handle func(request) int
 type _handles map[string]_handle      // request.method => handle
 type _all_handles map[string]_handles // request.path => _handles
 
@@ -21,8 +20,8 @@ const (
 func Collect() {
 	all_handles := _all_handles{
 		"/": {
-			GET: func(ctx context.Request) int {
-				if ctx.Req.URL.Path == "/" {
+			GET: func(ctx request) int {
+				if ctx.req.URL.Path == "/" {
 					return page_provider(ctx)
 				} else {
 					return handle_404(ctx)
@@ -37,7 +36,7 @@ func Collect() {
 		},
 	}
 
-	app_context := context.New_app()
+	app_context := new_app()
 
 	add_handle := func(path string, handles _handles) {
 		fmt.Println("route:", path, handles)
@@ -47,8 +46,8 @@ func Collect() {
 			if !ok {
 				handle = handle_404
 			}
-			
-			err_code := handle(context.New_request(res, req, app_context))
+
+			err_code := handle(new_request(res, req, app_context))
 			switch err_code {
 			case ERR_BAD_REQEUST:
 				res.WriteHeader(500 - err_code)
@@ -65,9 +64,9 @@ func Collect() {
 	}
 }
 
-func handle_404(ctx context.Request) int {
-	fmt.Println("404", ctx.Req.Method, ctx.Req.URL.Path)
-	ctx.Res.WriteHeader(404)
-	ctx.Res.Write([]byte("invalid request"))
+func handle_404(ctx request) int {
+	fmt.Println("404", ctx.req.Method, ctx.req.URL.Path)
+	ctx.res.WriteHeader(404)
+	ctx.res.Write([]byte("invalid request"))
 	return END
 }
