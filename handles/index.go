@@ -6,21 +6,26 @@ import (
 	"net/http"
 )
 
-type _handle func(context.Request)
+type _handle func(context.Request) int
 type _handles map[string]_handle      // request.method => handle
 type _all_handles map[string]_handles // request.path => _handles
 
 const GET = http.MethodGet
 const POST = http.MethodPost
 
+const (
+	END = iota
+	ERR_BAD_REQEUST
+)
+
 func Collect() {
 	all_handles := _all_handles{
 		"/": {
-			GET: func(ctx context.Request) {
+			GET: func(ctx context.Request) int {
 				if ctx.Req.URL.Path == "/" {
-					page_provider(ctx)
+					return page_provider(ctx)
 				} else {
-					handle_404(ctx)
+					return handle_404(ctx)
 				}
 			},
 		},
@@ -42,16 +47,27 @@ func Collect() {
 			if !ok {
 				handle = handle_404
 			}
-			handle(context.New_request(res, req, app_context))
+			
+			err_code := handle(context.New_request(res, req, app_context))
+			switch err_code {
+			case ERR_BAD_REQEUST:
+				res.WriteHeader(500 - err_code)
+			case END:
+				// end, do nothing
+			default:
+				panic(fmt.Sprintf("unrecognized error code: %d", err_code))
+			}
 		})
 	}
 	for path, handles := range all_handles {
+		// 避免闭包引起的变量作用域混乱
 		add_handle(path, handles)
 	}
 }
 
-func handle_404(ctx context.Request) {
+func handle_404(ctx context.Request) int {
 	fmt.Println("404", ctx.Req.Method, ctx.Req.URL.Path)
 	ctx.Res.WriteHeader(404)
 	ctx.Res.Write([]byte("invalid request"))
+	return END
 }

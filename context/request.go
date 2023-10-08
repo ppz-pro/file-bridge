@@ -24,7 +24,7 @@ func (ctx Request) Lang(cn_str string, en_str string) string {
 	case en:
 		return en_str
 	default:
-		panic("unknown lang key:" + ctx.Lang_key)
+		panic("unknown lang key: " + ctx.Lang_key)
 	}
 }
 

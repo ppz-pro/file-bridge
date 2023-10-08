@@ -9,10 +9,11 @@ type Animal struct {
 	Year int    `json:"year"`
 }
 
-func test_json(ctx context.Request) {
-	ani, ok := read_json[Animal](ctx)
+func test_json(ctx context.Request) int {
+	ani, ok := context.Read_json[Animal](ctx)
 	if !ok {
-		panic("err on parse json")
+		return ERR_BAD_REQEUST
 	}
-	write_json(ctx, ani)
+	context.Write_json(ctx, ani)
+	return END
 }
