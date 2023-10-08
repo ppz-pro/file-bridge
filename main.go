@@ -2,20 +2,20 @@ package main
 
 import (
 	"_/handles"
-	"_/log"
 	"fmt"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 const port = 7777
 
 func main() {
-	log.Info("file bridge (golang) starting")
+	log.Info().Msgf("file bridge (golang) starting on %d", port)
 	handles.Collect()
-	log.Info("listening on", port)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
-		log.Bug("file bridge stopped on error", err)
+		log.Error().Err(err).Msg("file bridge stopped on error")
 	}
-	log.Info("file bridge stopped")
+	log.Info().Msg("file bridge stopped")
 }

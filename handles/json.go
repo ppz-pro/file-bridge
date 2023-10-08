@@ -1,9 +1,10 @@
 package handles
 
 import (
-	"_/log"
 	"_/utils"
 	"io"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -35,7 +36,7 @@ func read_json_end[Result any](ctx request) (Result, int) {
 	case SUCCESS_READ_JSON:
 		return result, END
 	default:
-		log.Info("error on read json")
+		log.Warn().Msg("error on read json")
 		return result, ERR_UNKNOWN
 	}
 }
@@ -49,13 +50,17 @@ const (
 func write_json(ctx request, result any) int {
 	res_str, err := utils.Json_stringify(result)
 	if err != nil {
-		log.Bug("stringify on writing json", err)
+		log.Error().
+			Err(err).
+			Msg("stringify on writing json")
 		return ERR_WRITE_JSON_STRINGIFY
 	}
 
 	_, err = io.WriteString(ctx.res, res_str)
 	if err != nil {
-		log.Bug("write on writing json", err)
+		log.Error().
+			Err(err).
+			Msg("write on writing json")
 		return ERR_WRITE_JSON_WRITE
 	}
 
@@ -69,7 +74,9 @@ func write_json_end(ctx request, result any) int {
 	case SUCCESS_WRITE_JSON:
 		return END
 	default:
-		log.Bug("unknown code on writing json", code)
+		log.Error().
+			Int("code", code).
+			Msg("unknown code on writing json")
 		return ERR_UNKNOWN
 	}
 }

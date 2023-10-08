@@ -1,28 +1,14 @@
 package handles
 
 import (
-	"_/log"
-	"fmt"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 type _handle func(request) int
 type _handles map[string]_handle      // request.method => handle
 type _all_handles map[string]_handles // request.path => _handles
-
-const GET = http.MethodGet
-const POST = http.MethodPost
-
-const SUCCESS = 0
-const (
-	// 已处理
-	END = iota
-	// 客户端错误
-	ERR_BAD_REQEUST
-	// 服务端错误
-	ERR_SERVER_FLAG // 重新计数
-	ERR_UNKNOWN
-)
 
 func Collect() {
 	all_handles := _all_handles{
@@ -31,7 +17,7 @@ func Collect() {
 				if ctx.req.URL.Path == "/" {
 					return page_provider(ctx)
 				} else {
-					return handle_404(ctx)
+					return _handle_404(ctx)
 				}
 			},
 		},
@@ -46,12 +32,19 @@ func Collect() {
 	app_context := new_app()
 
 	add_handle := func(path string, handles _handles) {
-		log.Info("route:", path, handles)
+		log.Info().
+			Str("path", path).
+			Strs("method", _methods(handles)).
+			Msg("handle route")
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
-			log.Infof("[received request: %s %s][matched: %s]\n", req.Method, req.URL.Path, path)
+			log.Debug().
+				Str("matched", path).
+				Str("method", req.Method).
+				Str("path", req.URL.Path).
+				Msg("request received")
 			handle, ok := handles[req.Method]
 			if !ok {
-				handle = handle_404
+				handle = _handle_404
 			}
 
 			err_code := handle(new_request(res, req, app_context))
@@ -63,7 +56,7 @@ func Collect() {
 			case END:
 				// end, do nothing
 			default:
-				log.Bug(fmt.Sprintf("unrecognized error code: %d", err_code))
+				log.Error().Int("code", err_code).Msg("unrecognized error code")
 			}
 		})
 	}
@@ -73,9 +66,20 @@ func Collect() {
 	}
 }
 
-func handle_404(ctx request) int {
-	log.Error("404", ctx.req.Method, ctx.req.URL.Path)
+func _handle_404(ctx request) int {
+	log.Info().
+		Str("method", ctx.req.Method).
+		Str("path", ctx.req.URL.Path).
+		Msg("404")
 	ctx.res.WriteHeader(404)
 	ctx.res.Write([]byte("invalid request"))
 	return END
+}
+
+func _methods(handles _handles) []string {
+	var result []string
+	for key := range handles {
+		result = append(result, key)
+	}
+	return result
 }
