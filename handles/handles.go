@@ -1,6 +1,7 @@
 package handles
 
 import (
+	"_/log"
 	"fmt"
 	"net/http"
 )
@@ -12,9 +13,15 @@ type _all_handles map[string]_handles // request.path => _handles
 const GET = http.MethodGet
 const POST = http.MethodPost
 
+const SUCCESS = 0
 const (
+	// 已处理
 	END = iota
+	// 客户端错误
 	ERR_BAD_REQEUST
+	// 服务端错误
+	ERR_SERVER_FLAG // 重新计数
+	ERR_UNKNOWN
 )
 
 func Collect() {
@@ -39,9 +46,9 @@ func Collect() {
 	app_context := new_app()
 
 	add_handle := func(path string, handles _handles) {
-		fmt.Println("route:", path, handles)
+		log.Info("route:", path, handles)
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
-			fmt.Printf("[received request: %s %s][matched: %s]\n", req.Method, req.URL.Path, path)
+			log.Infof("[received request: %s %s][matched: %s]\n", req.Method, req.URL.Path, path)
 			handle, ok := handles[req.Method]
 			if !ok {
 				handle = handle_404
@@ -51,10 +58,12 @@ func Collect() {
 			switch err_code {
 			case ERR_BAD_REQEUST:
 				res.WriteHeader(500 - err_code)
+			case ERR_UNKNOWN:
+				res.WriteHeader(600 + ERR_SERVER_FLAG - err_code)
 			case END:
 				// end, do nothing
 			default:
-				panic(fmt.Sprintf("unrecognized error code: %d", err_code))
+				log.Bug(fmt.Sprintf("unrecognized error code: %d", err_code))
 			}
 		})
 	}
@@ -65,7 +74,7 @@ func Collect() {
 }
 
 func handle_404(ctx request) int {
-	fmt.Println("404", ctx.req.Method, ctx.req.URL.Path)
+	log.Error("404", ctx.req.Method, ctx.req.URL.Path)
 	ctx.res.WriteHeader(404)
 	ctx.res.Write([]byte("invalid request"))
 	return END

@@ -2,6 +2,7 @@ package main
 
 import (
 	"_/handles"
+	"_/log"
 	"fmt"
 	"net/http"
 )
@@ -9,12 +10,12 @@ import (
 const port = 7777
 
 func main() {
-	fmt.Println("\n\n\nfile bridge (golang) starting")
+	log.Info("file bridge (golang) starting")
 	handles.Collect()
-	fmt.Printf("listening on %d\n\n", port)
+	log.Info("listening on", port)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
-		fmt.Println("stopped on error: ", err)
+		log.Bug("file bridge stopped on error", err)
 	}
-	fmt.Println("stopped")
+	log.Info("file bridge stopped")
 }

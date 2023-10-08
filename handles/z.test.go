@@ -6,10 +6,13 @@ type Animal struct {
 }
 
 func test_json(ctx request) int {
-	ani, ok := read_json[Animal](ctx)
-	if !ok {
-		return ERR_BAD_REQEUST
+	ani, code := read_json_end[Animal](ctx)
+	if code != SUCCESS {
+		return code
 	}
-	write_json(ctx, ani)
+	code = write_json_end(ctx, ani)
+	if code != SUCCESS {
+		return code
+	}
 	return END
 }

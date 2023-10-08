@@ -16,7 +16,10 @@ type app struct {
 }
 
 func new_app() app {
-	tmpl := template.Must(template.ParseFiles("handles/template/layout.html"))
+	tmpl, err := template.ParseFiles("handles/template/layout.html")
+	if err != nil {
+		panic("layout 模板解析失败")
+	}
 	return app{
 		func(res http.ResponseWriter, data webpage) error {
 			return tmpl.Execute(res, data)
