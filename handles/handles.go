@@ -1,9 +1,8 @@
 package handles
 
 import (
+	"log/slog"
 	"net/http"
-
-	"github.com/rs/zerolog/log"
 )
 
 type _handle func(request) int
@@ -32,16 +31,16 @@ func Collect() {
 	app_context := new_app()
 
 	add_handle := func(path string, handles _handles) {
-		log.Info().
-			Str("path", path).
-			Strs("method", _methods(handles)).
-			Msg("handle route")
+		slog.Info("handle route",
+			"path", path,
+			"method", _methods(handles),
+		)
 		http.HandleFunc(path, func(res http.ResponseWriter, req *http.Request) {
-			log.Debug().
-				Str("matched", path).
-				Str("method", req.Method).
-				Str("path", req.URL.Path).
-				Msg("request received")
+			slog.Info("request received",
+				"matched", path,
+				"method", req.Method,
+				"path", req.URL.Path,
+			)
 			handle, ok := handles[req.Method]
 			if !ok {
 				handle = _handle_404
@@ -56,7 +55,9 @@ func Collect() {
 			case END:
 				// end, do nothing
 			default:
-				log.Error().Int("code", err_code).Msg("unrecognized error code")
+				slog.Error("unrecognized error code",
+					"code", err_code,
+				)
 			}
 		})
 	}
@@ -67,10 +68,10 @@ func Collect() {
 }
 
 func _handle_404(ctx request) int {
-	log.Info().
-		Str("method", ctx.req.Method).
-		Str("path", ctx.req.URL.Path).
-		Msg("404")
+	slog.Info("404",
+		"method", ctx.req.Method,
+		"path", ctx.req.URL.Path,
+	)
 	ctx.res.WriteHeader(404)
 	ctx.res.Write([]byte("invalid request"))
 	return END
