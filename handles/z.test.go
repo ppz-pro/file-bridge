@@ -16,3 +16,11 @@ func test_json(ctx request) int {
 	}
 	return END
 }
+
+func test_query(ctx request) int {
+	q := ctx.req.URL.Query()
+	year := q["year"]
+	tel := q["tel"]
+	write_json_end(ctx, append(year, tel...))
+	return END
+}

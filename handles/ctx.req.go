@@ -9,7 +9,7 @@ const cn = "cn"
 const en = "en"
 
 type request struct {
-	app app
+	__app app
 
 	res http.ResponseWriter
 	req *http.Request
@@ -26,6 +26,10 @@ func (ctx request) lang(cn_str string, en_str string) string {
 	default:
 		panic("unknown lang key: " + ctx.lang_key)
 	}
+}
+
+func (ctx request) render(res http.ResponseWriter, data webpage) {
+	ctx.__app.render(res, data)
 }
 
 func _parse_lang(query url.Values) string { // coc: 下划线开头的对象仅用于文件内部
