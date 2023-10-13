@@ -29,6 +29,9 @@ func Collect() {
 		"/test/query": {
 			GET: test_query,
 		},
+		"/test/upload": {
+			POST: test_upload,
+		},
 	}
 
 	app_context := new_app()

@@ -1,5 +1,11 @@
 package handles
 
+import (
+	"io"
+	"log/slog"
+	"os"
+)
+
 type Animal struct {
 	Name string `json:"name"`
 	Year int    `json:"year"`
@@ -22,5 +28,48 @@ func test_query(ctx request) int {
 	year := q["year"]
 	tel := q["tel"]
 	write_json_end(ctx, append(year, tel...))
+	return END
+}
+
+func test_upload(ctx request) int {
+	file, err := os.Create("hello.txt")
+	if err != nil {
+		panic("文件创建失败")
+	}
+
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			slog.Error("file closed twice")
+		}
+	}()
+
+	size := 20
+	chunk := make([]byte, size)
+
+	write := func(length int) {
+		file.Write(chunk[0:length])
+		slog.Info("reading body",
+			"size", size,
+			"length", length,
+			"chunk", string(chunk),
+		)
+	}
+
+	for {
+		length, err := ctx.req.Body.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				write(length)
+				slog.Info("read finished")
+			} else {
+				slog.Error("error on reading", "err", err)
+			}
+			break
+		} else {
+			write(length)
+		}
+	}
+	ctx.res.WriteHeader(200)
 	return END
 }
