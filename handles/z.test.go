@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"time"
 )
 
 type Animal struct {
@@ -48,11 +49,14 @@ func test_upload(ctx request) int {
 	chunk := make([]byte, size)
 
 	write := func(length int) {
-		file.Write(chunk[0:length])
-		slog.Info("reading body",
+		len_write, err := file.Write(chunk[0:length])
+		time.Sleep(time.Second)
+		slog.Info("uploading",
 			"size", size,
 			"length", length,
+			"len_write", len_write,
 			"chunk", string(chunk),
+			"err", err,
 		)
 	}
 
@@ -70,6 +74,6 @@ func test_upload(ctx request) int {
 			write(length)
 		}
 	}
-	ctx.res.WriteHeader(200)
+	ctx.res.Write([]byte("finished"))
 	return END
 }
