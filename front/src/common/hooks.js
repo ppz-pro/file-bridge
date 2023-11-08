@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from "react"
 
 export
 const useMount = on_mount =>
   useEffect(
-    () => on_mount(),
+    () => {
+      on_mount()
+    },
     [],
   )
 
@@ -11,7 +13,9 @@ const useMount = on_mount =>
 export
 const useMount_w = (watch, cb) =>
   useEffect(
-    () => cb(),
+    () => {
+      cb()
+    },
     watch
   )
 
