@@ -7,7 +7,9 @@ async function main() {
     sourcemap: true,
     outfile: 'public/bundled/index.js',
     logLevel: 'info',
-    jsx: 'automatic',
+    jsx: 'automatic', // 自动 import jsx
+    jsxFactory: 'jsx', // React.createElement -> jsx
+    jsxImportSource: '@emotion/react', // jsx 来自哪个包
   })
 
   await ctx.watch()
