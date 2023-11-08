@@ -1,6 +1,7 @@
 + 测试 websocket
 + 最终还是要用 gin
 + react 前端
++ 后端用 jwt 固定提供端
 
 # Features
 ##### 开关

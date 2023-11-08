@@ -1,4 +1,4 @@
-# 文件桥
+# 丑丑仔
 网页里的文件服务器
 
 [试用地址](https://bridge.ppz.我爱你/) (仅支持 10Mb 以内文件，流量好贵！) | [微信聊天群](https://ppz-pro.github.io/.github/)

@@ -3,7 +3,12 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import downloader from './pages/downloader'
 import provider from './pages/provider'
 
-const get_pages = list => {
+const list = [
+  downloader,
+  provider,
+]
+
+const router = new function() {
   const result = []
   for (const page of list)
     if (page.path instanceof Array)
@@ -15,18 +20,13 @@ const get_pages = list => {
     else
       result.push([page.path, page.El])
   
-  return result.map(([ path, El ]) => ({
-    path,
-    element: <El />
-  }))
+  return createBrowserRouter(
+    result.map(([ path, El ]) => ({
+      path,
+      element: <El />
+    }))
+  )
 }
-
-const router = createBrowserRouter(
-  get_pages([
-    downloader,
-    provider,
-  ])
-)
 
 export
 const Router = () =>
