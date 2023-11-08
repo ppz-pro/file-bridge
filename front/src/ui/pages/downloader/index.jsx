@@ -1,3 +1,5 @@
-export
-const Downloader = () =>
-  <div>Downloader</div>
+export default {
+  path: '/downloader',
+  El: () =>
+    <div>downloader</div>
+}

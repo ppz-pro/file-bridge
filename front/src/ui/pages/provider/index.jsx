@@ -1,3 +1,6 @@
-export
-const Provider = () =>
-  <div>Provider</div>
+export default {
+  path: ['/', '/provider'],
+  El: () =>
+    <div>provider</div>
+  ,
+}
