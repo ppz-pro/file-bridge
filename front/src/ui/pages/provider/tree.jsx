@@ -15,21 +15,23 @@ const Dir = ({ handle }) => {
   const [collapse, toggle_collapse] = useBool(true)
 
   return <Dir_cont>
-    <Dir_name_ onClick = {toggle_collapse}>
+    <Dir_name_ onClick = {Toggle_dir(handle, children, set_children, toggle_collapse)}>
       <Triangle_ collapse = {collapse}/>
       {handle.name}
     </Dir_name_>
     {children &&
       <Children_cont>
-        {children.map(child =>
-          child.kine == 'file'
-            ? <File handle = {child} />
-            : <Dir handle = {child} />
-        )}
+        {children.map((handle, index) => {
+          const Child = handle.kind == 'file' ? File : Dir
+          return <Child handle = {handle} key = {index} />
+        })}
       </Children_cont>
     }
   </Dir_cont>
 }
+
+const File = ({ handle }) =>
+  <div>{handle.name}</div>
 
 const Tree_cont = styled.div`
 
@@ -52,3 +54,24 @@ const Triangle_ = styled(Triangle)`
   margin-right: .5em;
   transform: rotate(${props => props.collapse ? 90 : 180}deg);
 `
+
+const Toggle_dir = (handle, children, set_children, toggle_collapse) => {
+  let toggling = false
+  return async () => {
+    console.log('click toggle', handle.name)
+    if (toggling) return
+    console.log('handle toggle', handle.name)
+    toggling = true
+
+    if (!children) {
+      const childs = []
+      for await (const child_handle of handle.values())
+        childs.push(child_handle)
+      console.log('child of', handle.name, childs)
+      set_children(childs)
+    }
+    toggle_collapse()
+
+    toggling = false
+  }
+}
