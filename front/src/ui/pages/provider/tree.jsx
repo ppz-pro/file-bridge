@@ -2,6 +2,7 @@ import { useState } from 'react'
 import styled from '@emotion/styled'
 import { Triangle } from '../../cmps/triangle'
 import { useBool } from '../../../common/hooks'
+import { Sync_job } from '../../../common/utils'
 
 export
 const Tree = ({ handle }) =>
@@ -19,7 +20,7 @@ const Dir = ({ handle }) => {
       <Triangle_ collapse = {collapse}/>
       {handle.name}
     </Dir_name_>
-    {children &&
+    {children && !collapse &&
       <Children_cont>
         {children.map((handle, index) => {
           const Child = handle.kind == 'file' ? File : Dir
@@ -55,23 +56,14 @@ const Triangle_ = styled(Triangle)`
   transform: rotate(${props => props.collapse ? 90 : 180}deg);
 `
 
-const Toggle_dir = (handle, children, set_children, toggle_collapse) => {
-  let toggling = false
-  return async () => {
-    console.log('click toggle', handle.name)
-    if (toggling) return
-    console.log('handle toggle', handle.name)
-    toggling = true
-
+const Toggle_dir = (handle, children, set_children, toggle_collapse) =>
+  Sync_job(async () => {
     if (!children) {
       const childs = []
       for await (const child_handle of handle.values())
         childs.push(child_handle)
-      console.log('child of', handle.name, childs)
+      console.log('retrieved children of', handle.name, childs)
       set_children(childs)
     }
     toggle_collapse()
-
-    toggling = false
-  }
-}
+  }, 'toggle dir')
