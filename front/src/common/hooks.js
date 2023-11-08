@@ -28,3 +28,12 @@ const useData = ({ get, default_value, watch = []}) => {
   )
   return val
 }
+
+export
+const useBool = initial_value => {
+  const [value, set] = useState(initial_value)
+  return [
+    value,
+    () => set(!value),
+  ]
+}
