@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 
 export
-const Triangle = styled.div`
+const Triangle = styled.i`
   display: inline-block;
   &::before {
     box-sizing: border-box;

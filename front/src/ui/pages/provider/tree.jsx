@@ -71,6 +71,12 @@ const Dir_cont = styled.div`
 const Dir_name_ = styled.div`
   cursor: pointer;
   user-select: none;
+  &:hover i {
+    color: rgba(0,0,0,1);
+  }
+  i {
+    color: rgba(0,0,0,.38);
+  }
 `
 
 const Children_cont = styled.div`
@@ -86,7 +92,6 @@ const Triangle_ = styled(Triangle)`
   transition: all .1s;
   font-size: .6rem;
   margin-right: .7rem;
-  color: rgba(0,0,0,${props => props.collapse ? .38 : 1});
   transform: rotate(${props => props.collapse ? 90 : 180}deg);
 `
 
