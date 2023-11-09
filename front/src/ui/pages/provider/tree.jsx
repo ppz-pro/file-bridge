@@ -35,7 +35,8 @@ const File = ({ handle }) =>
   <div>{handle.name}</div>
 
 const Tree_cont = styled.div`
-
+  padding: 1em 2em;
+  background: rgba(0,0,0,.02888);
 `
 
 const Dir_cont = styled.div`
@@ -47,12 +48,19 @@ const Dir_name_ = styled.div`
 `
 
 const Children_cont = styled.div`
+  margin-left: .25rem;
+  border-left: 1px solid rgba(0,0,0,.0666);
+  padding-left: calc(.85rem - 1px);
+  &:hover {
+    border-left-color: rgba(0,0,0,.1888);
+  }
 `
 
 const Triangle_ = styled(Triangle)`
-  transition: transform .1s;
-  font-size: .6em;
-  margin-right: .5em;
+  transition: all .1s;
+  font-size: .6rem;
+  margin-right: .5rem;
+  color: rgba(0,0,0,${props => props.collapse ? .38 : 1});
   transform: rotate(${props => props.collapse ? 90 : 180}deg);
 `
 
