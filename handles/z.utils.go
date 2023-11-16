@@ -21,6 +21,19 @@ func read_query[Result any](c *gin.Context) (Result, bool) {
 	}
 	return result, true
 }
+func read_params[Result any](c *gin.Context) (*Result, bool) {
+	result := new(Result)
+	err := c.ShouldBindUri(result)
+	if err != nil {
+		slog.Debug(
+			"error on parsing params in request",
+			"msg", err.Error(),
+		)
+		respond_json_error(c, ERR_CODE_REQUEST_PARAMS)
+		return result, false
+	}
+	return result, true
+}
 
 func read_json[Result any](c *gin.Context) (Result, bool) {
 	var result Result

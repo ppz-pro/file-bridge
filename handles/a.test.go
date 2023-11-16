@@ -17,7 +17,7 @@ func collect_test(engine *gin.Engine) {
 
 	test.GET("/query", func() func(*gin.Context) {
 		type test_query struct {
-			Name string `form:"name" binding:"required"` // required: 必须非空字符串
+			Name string `form:"name" binding:"required"` // 必须非空字符串
 			Male bool   `form:"male"`
 			Year int    `form:"year"`
 		}
@@ -31,6 +31,24 @@ func collect_test(engine *gin.Engine) {
 				"query", query,
 			)
 			respond(c)
+		}
+	}())
+
+	test.GET("/params/:name/:year", func() func(*gin.Context) {
+		type test_params struct {
+			Name string `uri:"name" binding:"required"`
+			Year int    `uri:"year" binding:"required"`
+			// Male bool   `uri:"male" binding:"required"` // 似乎不支持 bool
+		}
+		return func(c *gin.Context) {
+			params, ok := read_params[test_params](c)
+			if !ok {
+				return
+			}
+			slog.Info("received params",
+				"params", params,
+			)
+			respond_json(c, params)
 		}
 	}())
 
