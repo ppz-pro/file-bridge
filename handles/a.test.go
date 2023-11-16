@@ -14,13 +14,6 @@ func collect_test(engine *gin.Engine) {
 		c.String(http.StatusOK, "hello, I'm PPz!")
 	})
 
-	test.GET("/json", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"name": "PPz",
-			"year": 3,
-		})
-	})
-
 	test.POST("/json", func() func(*gin.Context) {
 		type test_JSON struct {
 			Name string `json:"name"`
@@ -36,7 +29,10 @@ func collect_test(engine *gin.Engine) {
 			slog.Info("received json",
 				"data", data,
 			)
-			c.String(http.StatusOK, "json ok")
+			respond_json(c, gin.H{
+				"name": "PPz",
+				"year": 3,
+			})
 		}
 	}())
 }
