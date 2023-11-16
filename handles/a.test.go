@@ -17,7 +17,7 @@ func collect_test(engine *gin.Engine) {
 
 	test.GET("/query", func() func(*gin.Context) {
 		type test_query struct {
-			Name string `form:"name"`
+			Name string `form:"name" binding:"required"` // required: 必须非空字符串
 			Male bool   `form:"male"`
 			Year int    `form:"year"`
 		}
@@ -36,7 +36,7 @@ func collect_test(engine *gin.Engine) {
 
 	test.POST("/json", func() func(*gin.Context) {
 		type test_JSON struct {
-			Name string `json:"name"`
+			Name string `json:"name" binding:"required"` // 必须非空字符串
 			Tel  string `json:"tel"`
 			Year int    `json:"year"`
 		}
