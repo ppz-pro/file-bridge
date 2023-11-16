@@ -7,6 +7,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func read_query[Result any](c *gin.Context) (Result, bool) {
+	var result Result
+	err := c.ShouldBindQuery(&result)
+	if err != nil {
+		slog.Debug(
+			"error on parsing query in request",
+			"msg", err.Error(),
+		)
+
+		respond_json_error(c, ERR_CODE_REQUEST_QUERY)
+		return result, false
+	}
+	return result, true
+}
+
 func read_json[Result any](c *gin.Context) (Result, bool) {
 	var result Result
 	err := c.ShouldBindJSON(&result)
@@ -15,14 +30,27 @@ func read_json[Result any](c *gin.Context) (Result, bool) {
 			"error on parsing json in request",
 			"msg", err.Error(),
 		)
-		respond_json(c, gin.H{
-			"error": ERR_CODE_REQUEST_JSON,
-		})
+		respond_json_error(c, ERR_CODE_REQUEST_JSON)
 		return result, false
 	}
 	return result, true
 }
 
-func respond_json[Result any](c *gin.Context, result Result) {
-	c.JSON(http.StatusOK, result)
+func respond(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"error": NO_ERR,
+	})
+}
+
+func respond_json(c *gin.Context, data any) {
+	c.JSON(http.StatusOK, gin.H{
+		"error": NO_ERR,
+		"data":  data,
+	})
+}
+
+func respond_json_error(c *gin.Context, err int) {
+	c.JSON(http.StatusOK, gin.H{
+		"error": err,
+	})
 }
