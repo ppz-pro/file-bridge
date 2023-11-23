@@ -8,10 +8,12 @@ const Switch = ({ value, set_value }) =>
     onChange={() => set_value(!value)}
   />
 
+// for reference: https://github.com/ppz-pro/css-components/tree/main
 const Input = styled.input`
   display: inline-block;
   height: 2em;
   width: 3.2em;
+  margin: 0;
   position: relative;
   visibility: hidden;
   &::before, &::after {
@@ -26,6 +28,7 @@ const Input = styled.input`
     top: 0;
     bottom: 0;
     border-radius: 1em;
+    transition: .18s background;
     background: #eee;
   }
   &:checked::before {
