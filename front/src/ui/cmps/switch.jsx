@@ -1,8 +1,9 @@
 import styled from '@emotion/styled'
 
 export
-const Switch = ({ value, set_value }) =>
+const Switch = ({ value, set_value, disabled }) =>
   <Input
+    disabled = {disabled}
     type='checkbox'
     checked={value}
     onChange={() => set_value(!value)}
