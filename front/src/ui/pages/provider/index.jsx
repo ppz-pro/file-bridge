@@ -2,6 +2,7 @@ import { Layout } from '../../cmps/layout'
 import { useState_root_handle, useVal_provider_id } from './state'
 import { P } from '../../style/styled'
 import { Tree } from './tree'
+import { Switches } from './switches'
 
 const Provider_page = () => {
   const [root_handle, set_root_handle] = useState_root_handle()
@@ -17,6 +18,7 @@ const Provider_page = () => {
             {root_handle ? '重选文件夹' : '选择文件夹'}
           </button>
         </P>
+        <Switches />
         {root_handle &&
           <P>
             <Tree handle = {root_handle} />
