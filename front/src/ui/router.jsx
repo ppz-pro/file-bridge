@@ -22,7 +22,7 @@ const router = new function() {
   
   return createBrowserRouter(
     result.map(([ path, El ]) => ({
-      path,
+      path: '/client' + path,
       element: <El />
     }))
   )

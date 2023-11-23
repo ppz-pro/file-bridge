@@ -13,9 +13,6 @@ async function main() {
   })
 
   await ctx.watch()
-  await ctx.serve({
-    servedir: 'public',
-  })
 }
 
 main()
