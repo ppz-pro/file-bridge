@@ -2,7 +2,11 @@ module _
 
 go 1.21.1
 
-require github.com/gin-gonic/gin v1.9.1
+require (
+	github.com/gin-gonic/gin v1.9.1
+	github.com/golang-jwt/jwt/v5 v5.1.0
+	github.com/google/uuid v1.4.0
+)
 
 require (
 	github.com/bytedance/sonic v1.10.2 // indirect

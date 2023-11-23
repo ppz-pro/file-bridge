@@ -27,7 +27,7 @@ const useVal_provider_id = () => {
       if (!jwt) return null
       const payload = jwt.split('.')[1]
       const decoded_payload = JSON.parse(atob(payload))
-      return decoded_payload.provider_id
+      return decoded_payload.sub
     },
     [jwt],
   )

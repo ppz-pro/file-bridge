@@ -10,6 +10,7 @@ func Collect() func(string) {
 	engine := gin.Default()
 	collect_test(engine)
 	collect_static(engine)
+	collect_provider(engine)
 
 	return func(addr string) {
 		err := engine.Run(addr)
