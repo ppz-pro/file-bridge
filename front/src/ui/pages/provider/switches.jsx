@@ -5,10 +5,14 @@ import { useState_serving, useState_serving_webpage } from './state/options'
 
 export
 const Switches = () =>
-  <>
+  <Switches_container>
     <Serving />
     <Serving_website />
-  </>
+  </Switches_container>
+
+const Switches_container = styled.div`
+  margin: 2em 0;
+`
 
 const Serving = () => {
   const [serving, set_serving] = useState_serving()

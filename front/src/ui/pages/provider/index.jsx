@@ -18,11 +18,13 @@ const Provider_page = () => {
             {root_handle ? '重选文件夹' : '选择文件夹'}
           </button>
         </P>
-        <Switches />
         {root_handle &&
-          <P>
-            <Tree handle = {root_handle} />
-          </P>
+          <>
+            <Switches />
+            <P>
+              <Tree handle = {root_handle} />
+            </P>
+          </>
         }
       </main>
       : 'requesting provider id'
