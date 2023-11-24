@@ -32,7 +32,25 @@ func collect_provider(engine *gin.Engine) {
 		}
 	})
 
-	provider_map := mng_connections(group)
+	auth_group := group.Group("", func(c *gin.Context) {
+		tokens := c.Request.Header["Token"]
+		if len(tokens) == 0 {
+			respond_json_error(c, ERR_CODE_AUTH_NO_TOKEN)
+			return
+		}
+		token := tokens[1]
+		// check format
+
+		c.Next()
+	})
+
+	auth_group.GET("/auth-test", func(c *gin.Context) {
+		// 仅测试：无 token、或 token 格式不正确
+		respond(c)
+	})
+
+	// provider_map := mng_connections(auth_group)
+	mng_connections(auth_group)
 }
 
 type request_file_from_downloader func(target_path string)
