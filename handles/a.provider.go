@@ -1,6 +1,8 @@
 package handles
 
 import (
+	"_/config"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -21,7 +23,7 @@ func collect_provider(engine *gin.Engine) {
 				"iat": time.Now().Unix(),
 			},
 		)
-		token_str, err := token.SignedString([]byte("omamimamiho"))
+		token_str, err := token.SignedString([]byte(config.Get_jwt_secret()))
 		if err == nil {
 			respond_json(c, token_str)
 		} else {
@@ -38,15 +40,29 @@ func collect_provider(engine *gin.Engine) {
 			respond_json_error(c, ERR_CODE_AUTH_NO_TOKEN)
 			return
 		}
-		token := tokens[1]
-		// check format
-
+		// parse and validate
+		token, err := jwt.Parse(tokens[0], func(t *jwt.Token) (interface{}, error) {
+			if t.Method != jwt.SigningMethodES256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Method)
+			}
+			return config.Get_jwt_secret(), nil
+		})
+		if err != nil {
+			respond_json_error(c, ERR_CODE_AUTH_INVALID_TOKEN)
+			return
+		}
+		provider_id, err := token.Claims.GetSubject()
+		if err != nil {
+			respond_json_error(c, ERR_CODE_AUTH_UNKNOWN)
+			return
+		}
+		c.Set("provider_id", provider_id)
 		c.Next()
 	})
 
 	auth_group.GET("/auth-test", func(c *gin.Context) {
 		// 仅测试：无 token、或 token 格式不正确
-		respond(c)
+		respond_json(c, c.GetString("provider_id"))
 	})
 
 	// provider_map := mng_connections(auth_group)
